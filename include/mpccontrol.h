@@ -3,6 +3,12 @@
 #ifndef MPCCONTROL_H
 #define MPCCONTROL_H
 
+typedef enum
+{
+    DELTA=0,
+    NORMAL
+}MPCType;
+
 typedef struct
 {
 gsl_matrix *A;
@@ -36,6 +42,7 @@ gsl_matrix *statedata;
 double *xss;
 double *uss;
 int formulationtype; ///(0) normal formulation or delta formulation (1)
+MPCType type;
 }structMPC;
 
 typedef struct
@@ -44,11 +51,7 @@ typedef struct
     double *data;
 }double_size;
 
-typedef enum
-{
-    DELTA=0,
-    NORMAL
-}MPCType;
+
 
 
 void InitMPCType(structMPC *mpcptr,Model *modeldiscrete,MPCType type);

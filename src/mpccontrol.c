@@ -1,5 +1,14 @@
 #include "mpccontrol.h"
 
+/** \brief
+ *  This function takes a pointer to an mpc structure, a pointer to a model and and MPCType.
+ *  The MPCType determines whether the formulation is normal or delta formulation. It creates
+    appropriate A,B,C,D matrices which it stores in the MPC struct.
+ * \param mpcptr Pointer to a MPC structure
+ * \param modelptr Pointer to an already discretized model
+ * \return
+ *
+ */
 
 
 void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type)
@@ -24,9 +33,11 @@ void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type)
         gsl_matrix_memcpy(mpcptr->B,modelptr->B);
         gsl_matrix_memcpy(mpcptr->C,modelptr->C);
         gsl_matrix_memcpy(mpcptr->D,modelptr->D);
+        mpcptr->type=NORMAL;
     }
     else if(type==DELTA)
     {
+        mpcptr->type=DELTA;
         mpcptr->A=gsl_matrix_alloc(Ns+Nu,Ns+Nu);
         mpcptr->B=gsl_matrix_alloc(Ns+Nu,Nu);
         mpcptr->C=gsl_matrix_alloc(Ny,Ns+Nu);
