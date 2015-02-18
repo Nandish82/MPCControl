@@ -1,6 +1,82 @@
 #include "mpccontrol.h"
 
-void InitMPC(MPC_struc *mpcptr,Model *m,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA)
+
+
+void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type)
+{
+    int Ns,Nu,Ny; ///number of states, inputs and outputs
+    int i,j;
+
+    /**Allocating the sizes */
+    Ns=modelptr->A->size1;
+    Nu=modelptr->B->size2;
+    Ny=modelptr->C->size1;
+
+    printf("Ns:%d,Nu:%d,Ny:%d",Ns,Nu,Ny);
+    if(type==NORMAL)
+    {
+        mpcptr->A=gsl_matrix_alloc(Ns,Ns);
+        mpcptr->B=gsl_matrix_alloc(Ns,Nu);
+        mpcptr->C=gsl_matrix_alloc(Ny,Ns);
+        mpcptr->D=gsl_matrix_alloc(Ny,Nu);
+
+        gsl_matrix_memcpy(mpcptr->A,modelptr->A);
+        gsl_matrix_memcpy(mpcptr->B,modelptr->B);
+        gsl_matrix_memcpy(mpcptr->C,modelptr->C);
+        gsl_matrix_memcpy(mpcptr->D,modelptr->D);
+    }
+    else if(type==DELTA)
+    {
+        mpcptr->A=gsl_matrix_alloc(Ns+Nu,Ns+Nu);
+        mpcptr->B=gsl_matrix_alloc(Ns+Nu,Nu);
+        mpcptr->C=gsl_matrix_alloc(Ny,Ns+Nu);
+        mpcptr->D=gsl_matrix_alloc(Ny,Nu);
+
+        gsl_matrix_set_all(mpcptr->A,0);
+        gsl_matrix_set_all(mpcptr->B,0);
+        gsl_matrix_set_all(mpcptr->C,0);
+        gsl_matrix_set_all(mpcptr->D,0);
+
+        ///A_delta
+        for(i=0;i<(Ns+Nu);i++)
+            for(j=0;j<(Ns+Nu);j++)
+        {
+            if((i<Ns)&&(j<Ns))
+                gsl_matrix_set(mpcptr->A,i,j,gsl_matrix_get(modelptr->A,i,j));
+            else if((i<Ns)&&(j>=Ns))
+                gsl_matrix_set(mpcptr->A,i,j,gsl_matrix_get(modelptr->B,i,j-Ns));
+             else if((i>=Ns)&&(j<Ns))
+                gsl_matrix_set(mpcptr->A,i,j,0);
+             else if((i>=Ns)&&(j>=Ns))
+                if(i==j)
+                    gsl_matrix_set(mpcptr->A,i,j,1); ///careful here its an identity matrix
+        }
+        ///B_delta
+         for(i=0;i<(Ns+Nu);i++)
+            for(j=0;j<(Nu);j++)
+        {
+            if((i<Ns)&&(j<Nu))
+                gsl_matrix_set(mpcptr->B,i,j,gsl_matrix_get(modelptr->B,i,j));
+            else if((i>=Ns)&&(j<Nu))
+                    if((i-Ns)==j)
+                        gsl_matrix_set(mpcptr->B,i,j,1);
+        }
+        ///Cdelta
+         for(i=0;i<(Ny);i++)
+            for(j=0;j<(Ns+Nu);j++)
+        {
+            if((i<Ny)&&(j<Ns))
+                gsl_matrix_set(mpcptr->C,i,j,gsl_matrix_get(modelptr->C,i,j));
+            else if((i<Ny)&&(j>=Ns))
+                    if((j-Ns)==i)
+                        gsl_matrix_set(mpcptr->C,i,j,0);
+        }
+
+
+    }
+}
+
+void InitMPC(structMPC *mpcptr,Model *m,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA)
 {
 
 /**
@@ -223,7 +299,7 @@ gsl_matrix_free(tempM);
 }
 
 /**calculation of steady state values at every time step */
-double* MPCcalcSS(MPC_struc *mpcptr, double *refr,double *input_dist, double *output_dist,gsl_matrix *Bd,gsl_matrix *Cref)
+double* MPCcalcSS(structMPC *mpcptr, double *refr,double *input_dist, double *output_dist,gsl_matrix *Bd,gsl_matrix *Cref)
 {
     /***Steady state value calculation
     x_ss=Ax_ss+Bu_ss+Bd.x_dss
@@ -353,7 +429,7 @@ for(i=0;i<Nu;i++)
     @param[out] *u pointer to matrix holding the next N (prediction horizon) control.
 
 */
-void MPC_Step(MPC_struc *mpcptr,gsl_matrix *xdata,gsl_matrix *u)
+void MPC_Step(structMPC *mpcptr,gsl_matrix *xdata,gsl_matrix *u)
 {
 
 

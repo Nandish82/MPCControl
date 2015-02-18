@@ -11,7 +11,7 @@ gsl_matrix *C;
 gsl_matrix *D;
 gsl_matrix *Q; //state weights
 gsl_matrix *R; //input weights
-gsl_matrix *H;
+gsl_matrix *H; //
 gsl_matrix *F;
 gsl_matrix *G;
 gsl_matrix *constraints;
@@ -35,7 +35,8 @@ gsl_matrix *xdata;
 gsl_matrix *statedata;
 double *xss;
 double *uss;
-}MPC_struc;
+int formulationtype; ///(0) normal formulation or delta formulation (1)
+}structMPC;
 
 typedef struct
 {
@@ -43,8 +44,16 @@ typedef struct
     double *data;
 }double_size;
 
-void InitMPC(MPC_struc *mpcptr,Model *m,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA);
-void MPC_Step(MPC_struc *mpcptr,gsl_matrix *xdata, gsl_matrix *u);
+typedef enum
+{
+    DELTA=0,
+    NORMAL
+}MPCType;
+
+
+void InitMPCType(structMPC *mpcptr,Model *modeldiscrete,MPCType type);
+void InitMPC(structMPC *mpcptr,Model *m,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA);
+void MPC_Step(structMPC *mpcptr,gsl_matrix *xdata, gsl_matrix *u);
 /**returns the steady state values*/
-double* MPCcalcSS(MPC_struc *mpcptr, double *refr,double *input_dist, double *output_dist,gsl_matrix *Bd,gsl_matrix *Cref);
+double* MPCcalcSS(structMPC *mpcptr, double *refr,double *input_dist, double *output_dist,gsl_matrix *Bd,gsl_matrix *Cref);
 #endif

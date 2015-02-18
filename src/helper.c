@@ -2,7 +2,6 @@
 
 void print2File(gsl_matrix *m,double *time_v,char *filename)
 {
-
     FILE *fp;
     int rows;
     int cols;

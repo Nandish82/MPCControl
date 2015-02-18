@@ -7,6 +7,7 @@
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_linalg.h>
 
+
 void print2File(gsl_matrix *m,double *time_v,char *filename);
 
 void print2scr(gsl_matrix *m); //print matrice to screen
