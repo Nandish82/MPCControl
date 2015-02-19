@@ -181,7 +181,8 @@ assign_Mat(Bd,Bdval);
 
 InitSimModel(ptr_servoD,X0,Ts,tsim,Bd);
 Kalman_Init_d_servo(k_p,ptr_servoD);
-InitMPC(mpckalmanptr,ptr_servoD,cHorizon,Qmpckalman,Pmpckalman,Rmpckalman,lbmpckalman,ubmpckalman,lbAmpc,ubAmpc);
+InitMPCType(mpckalmanptr,ptr_servoD,NORMAL);
+InitMPC(mpckalmanptr,cHorizon,Qmpckalman,Pmpckalman,Rmpckalman,lbmpckalman,ubmpckalman,lbAmpc,ubAmpc);
 //InitStateConstraints(mpckalmanptr,lbAmpc,ubAmpc);
 double qkalmanval[]={1,1,1,1,1,100};
 gsl_matrix *qkalcov=gsl_matrix_alloc(6,6);
@@ -242,7 +243,7 @@ gsl_matrix_set_all(udata,50);
 print2scr(Qmpckalman);
 print2scr(Pmpckalman);
 //Npoints=3;
-int loop=0; //just to make the loop function for debuggin purposes
+int loop=1; //just to make the loop function for debuggin purposes
 if(loop==1)
 {
 
@@ -296,7 +297,7 @@ fprintf(fmpc,"Kalman--R\n");
 print2FileMat(k_p->R,fmpc);
 fclose(fmpc);
 }
-
+}
 printModeldata(ptr_servoD,0,"statedata.dat");
 printKalmanData(k_p,0,"kalmandata2.dat");
 gnu_plot("plot 'statedata.dat' using 1:6 with lines\n");
@@ -325,16 +326,22 @@ for(i=0;i<5;i++)
 for(i=0;i<1;i++)
     fprintf(fmpc,"uss[%d]:%f\n",i,mpckalmanptr->uss[i]);
 fclose(fmpc);
-}
+
+
 structMPC mpc,*mpcptr;
 mpcptr=&mpc;
 InitMPCType(mpcptr,ptr_servoD,DELTA);
+InitSteadyState(mpcptr,Cref);
 print2scr(ptr_servoD->A);
 print2scr(ptr_servoD->B);
+
+
 print2scr(mpcptr->A);
 print2scr(mpcptr->B);
 print2scr(mpcptr->C);
 print2scr(mpcptr->D);
+print2scr(mpcptr->SteadyState);
+
 
 
 

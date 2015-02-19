@@ -79,15 +79,74 @@ void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type)
             if((i<Ny)&&(j<Ns))
                 gsl_matrix_set(mpcptr->C,i,j,gsl_matrix_get(modelptr->C,i,j));
             else if((i<Ny)&&(j>=Ns))
-                    if((j-Ns)==i)
-                        gsl_matrix_set(mpcptr->C,i,j,0);
+                        gsl_matrix_set(mpcptr->C,i,j,gsl_matrix_get(modelptr->D,i,j-Ns));
         }
-
+        ///D_delta
+        // gsl_matrix_memcpy(mpcptr->D,modelptr->D);
 
     }
 }
+/** \brief
+        Computes the steady state matrix i.e
+        [A-I B;
+         Cref 0]
+         This is done so that in the calculation
+         algorithm less time is consumed
+ *
+ * \param takes pointer to initialised mpc structure and stores matrix in mpcptr->Steady State
+ * \param
+ * \return
+ *
+ */
 
-void InitMPC(structMPC *mpcptr,Model *m,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA)
+void InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref)
+{
+    int Ns,Nu,Ny,i,j;
+    if(mpcptr->type==DELTA)
+    {
+        Nu=mpcptr->B->size2;
+        Ns=mpcptr->A->size1-Nu;
+        Ny=Cref->size1; ///Ny should be equal to the reference being tracked. To have a square matrix Ny[cref]=Nu
+
+        mpcptr->SteadyState=gsl_matrix_alloc(Ns+Ny,Ns+Nu);
+        for(i=0;i<Ns+Ny;i++)
+            for(j=0;j<Ns+Nu;j++)
+                if((i<Ns)&&(j<Ns))
+                    gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(mpcptr->A,i,j)-1);
+                else if((i<Ns)&&(j>=Ns))
+                    gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(mpcptr->B,i,j-Ns));
+                else if((i>=Ns)&&(j<Ns))
+                    gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(Cref,i-Ns,j));
+                 else if((i>=Ns)&&(j>=Ns))
+                    gsl_matrix_set(mpcptr->SteadyState,i,j,0);
+    }
+    else
+    {
+        Nu=mpcptr->B->size2;
+        Ns=mpcptr->A->size1;
+        Ny=Cref->size1;
+
+        mpcptr->SteadyState=gsl_matrix_alloc(Ns+Ny,Ns+Nu);
+        for(i=0;i<Ns+Ny;i++)
+            for(j=0;j<Ns+Nu;j++)
+                if((i<Ns)&&(j<Ns))
+                {
+                    if(i==j)
+                        gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(mpcptr->A,i,j)-1);
+                    else
+                     gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(mpcptr->A,i,j));
+                }
+
+                else if((i<Ns)&&(j>=Ns))
+                    gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(mpcptr->B,i,j-Ns));
+                else if((i>=Ns)&&(j<Ns))
+                    gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(Cref,i-Ns,j));
+                 else if((i>=Ns)&&(j>=Ns))
+                    gsl_matrix_set(mpcptr->SteadyState,i,j,0);
+    }
+}
+
+void InitMPC(structMPC *mpcptr,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA)
 {
 
 /**
@@ -111,13 +170,13 @@ Q is the weighting on the states. The last (Ns,Nu) elements are the terminal wei
 R is the weighting on the input.
 */
 
-mpcptr->Ts=m->Ts;
+mpcptr->Ts=mpcptr->Ts;
 mpcptr->contHor=cHorizon;
 int Ns,Nu,Ny,i,j,k,l;
 
-Ns=m->A->size1;
-Nu=m->B->size2;
-Ny=m->C->size1;
+Ns=mpcptr->A->size1;
+Nu=mpcptr->B->size2;
+Ny=mpcptr->C->size1;
 
 /**
 Assigning Q and R matrices*/
@@ -139,7 +198,7 @@ for(i=0;i<cHorizon;i++)
 {
       if(i>=j)
     {
-        tempCM=MatMul2(MatMulrec(m->A,i-j),m->B);//computes A^(n-1)*B
+        tempCM=MatMul2(MatMulrec(mpcptr->A,i-j),mpcptr->B);//computes A^(n-1)*B
         for(k=0;k<Ns;k++)
             for(l=0;l<Nu;l++)
             gsl_matrix_set(mpcptr->CM,i*Ns+k,j*Nu+l,gsl_matrix_get(tempCM,k,l));
@@ -198,7 +257,7 @@ mpcptr->M=gsl_matrix_alloc(Ns*cHorizon,Ns);
 gsl_matrix *tempM=gsl_matrix_alloc(Ns,Ns);
 for(i=0;i<cHorizon;i++)
 {
-    tempM=MatMulrec(m->A,i+1);
+    tempM=MatMulrec(mpcptr->A,i+1);
     for(k=0;k<Ns;k++)
             for(l=0;l<Ns;l++)
                 gsl_matrix_set(mpcptr->M,i*Ns+k,l,gsl_matrix_get(tempM,k,l));
@@ -231,10 +290,6 @@ for(i=0;i<mpcptr->F->size1;i++)
     for(j=0;j<mpcptr->F->size2;j++)
        mpcptr->fval[(i*mpcptr->F->size2)+j]=gsl_matrix_get(mpcptr->F,i,j);
 
-mpcptr->A=gsl_matrix_alloc(m->A->size1,m->A->size2);
-mpcptr->B=gsl_matrix_alloc(m->B->size1,m->B->size2);
-mpcptr->A=m->A;
-mpcptr->B=m->B;
 
 
 
@@ -338,9 +393,9 @@ double* MPCcalcSS(structMPC *mpcptr, double *refr,double *input_dist, double *ou
     gsl_matrix *SSmat=gsl_matrix_alloc(Ns+Nu,1);
     gsl_matrix_set_all(SSmat,0);
 
-    for(i=0;i<sizeref;i++)
-        gsl_matrix_set(Refdist,i,0,refr[i]-output_dist[i]);
 
+
+    ///Bd*input_dist
     for(i=0;i<BdX->size1;i++)
     {
         sum=0;
@@ -349,6 +404,10 @@ double* MPCcalcSS(structMPC *mpcptr, double *refr,double *input_dist, double *ou
         gsl_matrix_set(BdX,i,0,sum);
     }
 
+
+    ///RFBDx=[Bdx*inputdist;Ref-outdis]
+    for(i=0;i<sizeref;i++)
+        gsl_matrix_set(Refdist,i,0,refr[i]-output_dist[i]);
 
     for(i=0;i<RefBdX->size1;i++)
     {
@@ -369,38 +428,39 @@ double* MPCcalcSS(structMPC *mpcptr, double *refr,double *input_dist, double *ou
 
 
 
-    gsl_matrix *tempA=gsl_matrix_alloc(Ns,Ns);
-    gsl_matrix *IdA=gsl_matrix_alloc(Ns,Ns);
-    gsl_matrix *invMat=gsl_matrix_alloc(Ns+Nr,Ns+Nu);
+//    gsl_matrix *tempA=gsl_matrix_alloc(Ns,Ns);
+//    gsl_matrix *IdA=gsl_matrix_alloc(Ns,Ns);
+//    gsl_matrix *invMat=gsl_matrix_alloc(Ns+Nr,Ns+Nu);
+//
+//    gsl_matrix_set_all(tempA,0);
+//    gsl_matrix_set_identity(IdA);
+//    gsl_matrix_set_all(invMat,0);
+//
+//    tempA=MatSub2(mpcptr->A,IdA);
+//
+//    for(i=0;i<Ns+Nr;i++)
+//        for(j=0;j<Ns+Nu;j++)
+//    {
+//        if((i<(Ns)) && (j<(Ns)))
+//            gsl_matrix_set(invMat,i,j,gsl_matrix_get(tempA,i,j));
+//        else if((i<(Ns)) && (j>=(Ns)))
+//            gsl_matrix_set(invMat,i,j,gsl_matrix_get(mpcptr->B,i,j-Ns));
+//        else if((i>=(Ns)) && (j<(Ns)))
+//            gsl_matrix_set(invMat,i,j,gsl_matrix_get(Cref,i-Ns,j));
+//        else
+//            gsl_matrix_set(invMat,i,j,0);
+//
+//
+//    }
+//
+//     mpcptr->type=NORMAL;
+     InitSteadyState(mpcptr,Cref);
 
-    gsl_matrix_set_all(tempA,0);
-    gsl_matrix_set_identity(IdA);
-    gsl_matrix_set_all(invMat,0);
-
-    tempA=MatSub2(mpcptr->A,IdA);
-
-    for(i=0;i<Ns+Nr;i++)
-        for(j=0;j<Ns+Nu;j++)
-    {
-        if((i<(Ns)) && (j<(Ns)))
-            gsl_matrix_set(invMat,i,j,gsl_matrix_get(tempA,i,j));
-        else if((i<(Ns)) && (j>=(Ns)))
-            gsl_matrix_set(invMat,i,j,gsl_matrix_get(mpcptr->B,i,j-Ns));
-        else if((i>=(Ns)) && (j<(Ns)))
-            gsl_matrix_set(invMat,i,j,gsl_matrix_get(Cref,i-Ns,j));
-        else
-            gsl_matrix_set(invMat,i,j,0);
-
-
-    }
-
-     SSmat=MatMul2(MatInv2(invMat),RefBdX);
+     //SSmat=MatMul2(MatInv2(invMat),RefBdX);
+     SSmat=MatMul2(MatInv2(mpcptr->SteadyState),RefBdX);
      double *result=malloc((Ns+Nu)*sizeof(double));
 
-         printf("I am here 27.04---");
-         print2scr(invMat);
 
-          print2scr(SSmat);
         for(i=0;i<Nu+Ns;i++)
         {
             result[i]=gsl_matrix_get(SSmat,i,0);
@@ -422,13 +482,13 @@ for(i=0;i<Nu;i++)
 
 
 
-    gsl_matrix_free(tempA);
-    gsl_matrix_free(IdA);
+    //gsl_matrix_free(tempA);
+    //gsl_matrix_free(IdA);
     gsl_matrix_free(BdX);
     gsl_matrix_free(Refdist);
     gsl_matrix_free(RefBdX);
     gsl_matrix_free(SSmat);
-    gsl_matrix_free(invMat);
+    //gsl_matrix_free(invMat);
      return result;
 
 }
