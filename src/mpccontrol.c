@@ -171,7 +171,7 @@ R is the weighting on the input.
 */
 
 mpcptr->Ts=mpcptr->Ts;
-mpcptr->contHor=cHorizon;
+mpcptr->predHor=cHorizon;
 int Ns,Nu,Ny,i,j,k,l;
 
 Ns=mpcptr->A->size1;
@@ -508,7 +508,7 @@ int nV,nC;
 int i,j;
 int Nu=mpcptr->B->size2;
 int Ns=mpcptr->B->size1;
-int cHorizon=mpcptr->contHor;
+int cHorizon=mpcptr->predHor;
 
 nV=cHorizon*Nu;
 nC=cHorizon*Ns;
@@ -611,4 +611,172 @@ for(i=0;i<Nu;i++)
     gsl_matrix_free(Fxmat);
 }
 
+void MPCpredmat(structMPC *mpcptr,MPCPredictionType predtype)
+{
+
+int Ns,Nu,Ny,i,j,k,l,Np,Nc,Nsy;
+
+gsl_matrix *C;
+
+Np=mpcptr->predHor;
+Nc=mpcptr->contHor; /// These two variable should have been set somewhere in InitMPC.
+
+Ns=mpcptr->A->size1;
+Nu=mpcptr->B->size2;
+Ny=mpcptr->C->size1;
+
+//if(mpcptr->predtype==NULL)
+
+///Nsy determines whether state or output matrices should be formed
+if(mpcptr->predtype==STATE)
+{
+    ///We set the C matrix to identity so that we can use same equation for both state and output predictions.
+    C=gsl_matrix_alloc(Ns,Ns);
+    gsl_matrix_set_identity(C);
+    Nsy=C->size1;
+}
+else
+{
+    C=gsl_matrix_alloc(Ny,Ns);
+    gsl_matrix_memcpy(C,mpcptr->C);
+    Nsy=C->size1;
+}
+
+
+/**
+
+Np is the prediction Horizon
+Nc is the control Horizon
+
+    //matrix sizes
+    // Sux=(Np x Ns)*(Nc x Nu)
+    // Suy=(Np x Ny) *(Nc*Nu)
+    // Sxx=(Np*Ns) * (Ns)
+    // Sxy=(Np*Ny) *(Ns) //care should be taken here as we made Ns=Ny...the column of this matrix is the number of states
+    // Qtildex=(Np*Ns) * (Np*Ns)
+    // Qtildey=(Np*Ny) * (Np*Ny)
+    // Rtildex=(Nc*Nu) * (Nc*Nu)
+    // Rtildex=Rtildey
+    // H=Su'*Qtildexy*Su+Rtilde (Nc x Nu)*(Nc x Nu)
+    // F=Su'*Qtildexy*Sx
+    // G=
+
+
+*/
+
+///Declare temporary matrices, they all have to be freed afterwards
+gsl_matrix *Su=gsl_matrix_alloc(Np*Nsy,Nc*Nu);
+gsl_matrix_set_all(Su,0);
+gsl_matrix *Sx=gsl_matrix_alloc(Np*Nsy,Ns);
+gsl_matrix_set_all(Sx,0);
+gsl_matrix *Qtilde=gsl_matrix_alloc(Np*Nsy,Np*Nsy);
+gsl_matrix_set_zero(Qtilde);
+gsl_matrix *Rtilde=gsl_matrix_alloc(Nc*Nu,Nc*Nu);
+gsl_matrix_set_zero(Rtilde);
+///intermediate matrices to be freed also
+gsl_matrix *tempCAB=gsl_matrix_alloc(Nsy,Nu);
+gsl_matrix *tempCA=gsl_matrix_alloc(Nsy,Ns);
+gsl_matrix_set_zero(tempCAB);
+print2scr(tempCA);
+///Populating Su[Np x Nsy,Nc x Nu] matrix
+for(i=0;i<Np;i++)
+{
+    for(k=0;k<Nsy;k++)
+        for(l=0;l<Ns;l++)
+
+        {
+            tempCA=MatMul2(C,MatMulrec(mpcptr->A,i+1));
+             gsl_matrix_set(Sx,i*Nsy+k,l,gsl_matrix_get(tempCA,k,l));
+        }
+        gsl_matrix_set_zero(tempCAB);
+    for(j=0;j<Nc;j++)
+    {
+        if((i>=j)&& (i<Nc))
+           {
+               tempCAB=MatMul2(C,MatMul2(MatMulrec(mpcptr->A,i-j),mpcptr->B));
+               for(k=0;k<Nsy;k++)
+                for(l=0;l<Nu;l++)
+                gsl_matrix_set(Su,i*Nsy+k,j*Nu+l,gsl_matrix_get(tempCAB,k,l));
+           }
+        gsl_matrix_set_zero(tempCAB);
+        if((i>=j)&&i>=Nc)
+        {
+            if(j==Nc-1)
+            {
+                for(k=0;k<=(i-Nc+1);k++)
+                {
+                    tempCAB=MatAdd2(tempCAB,MatMul2(C,MatMul2(MatMulrec(mpcptr->A,k),mpcptr->B)));
+                }
+                 for(k=0;k<Nsy;k++)
+                    for(l=0;l<Nu;l++)
+                        gsl_matrix_set(Su,i*Nsy+k,j*Nu+l,gsl_matrix_get(tempCAB,k,l));
+                    gsl_matrix_set_zero(tempCAB);
+
+            }
+            else
+            {
+                tempCAB=MatMul2(C,MatMul2(MatMulrec(mpcptr->A,i-j),mpcptr->B));
+                for(k=0;k<C->size1;k++)
+                    for(l=0;l<Nu;l++)
+                        gsl_matrix_set(Su,i*Nsy+k,j*Nu+l,gsl_matrix_get(tempCAB,k,l));
+
+            }
+        }
+    }
+
+
+
+
+} ///end for loop
+
+///Qtilde
+for(i=0;i<Np;i++)
+{
+    if(i<Np-1)
+    {
+        for(k=0;k<Nsy;k++)
+            for(l=0;l<Nsy;l++)
+            gsl_matrix_set(Qtilde,i*Nsy+k,i*Nsy+l,gsl_matrix_get(mpcptr->Q,k,l));
+    }
+    else
+    {
+        for(k=0;k<Nsy;k++)
+            for(l=0;l<Nsy;l++)
+            gsl_matrix_set(Qtilde,i*Nsy+k,i*Nsy+l,gsl_matrix_get(mpcptr->P,k,l));
+    }
+}///end for loop
+
+printf("Qtilde\n");
+print2scr(Qtilde);
+///Rtilde
+for(i=0;i<Nc;i++)
+{
+
+        for(k=0;k<Nu;k++)
+            for(l=0;l<Nu;l++)
+            gsl_matrix_set(Rtilde,i*Nu+k,i*Nu+l,gsl_matrix_get(mpcptr->R,k,l));
+}
+
+print2scr(Rtilde);
+
+mpcptr->H=gsl_matrix_alloc(Nc*Nu,Nc*Nu);
+mpcptr->H=MatAdd2(MatMul2(MatTrans(Su),MatMul2(Qtilde,Su)),Rtilde);
+
+mpcptr->F=gsl_matrix_alloc(Nc*Nu,Ns);
+mpcptr->F=MatMul2(MatTrans(Su),MatMul2(Qtilde,Sx));
+print2scr(mpcptr->F);
+
+mpcptr->G=gsl_matrix_alloc(Ns,Ns);
+mpcptr->G=MatAdd2(MatMul2(MatTrans(C),MatMul2(mpcptr->Q,C)),MatMul2(MatTrans(Sx),MatMul2(Qtilde,Sx)));
+
+print2scr(mpcptr->G);
+/***free matrices**/
+gsl_matrix_free(Su);
+gsl_matrix_free(Sx);
+gsl_matrix_free(Qtilde);
+gsl_matrix_free(Rtilde);
+gsl_matrix_free(tempCAB);
+gsl_matrix_free(tempCA);
+
+}
 
