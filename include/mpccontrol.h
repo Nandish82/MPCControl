@@ -13,7 +13,6 @@ typedef enum
 {
     STATE=0,
     OUTPUT,
-    NOTDEFINED
 }MPCPredictionType;/** Determines whether Prediction types are on the states or the output*/
 
 typedef struct
@@ -44,6 +43,9 @@ double *ubAMX;
 gsl_matrix *CM;
 gsl_matrix *M;
 double *CMval;
+gsl_matrix *Su;
+gsl_matrix *Sx;
+double *suval;
 int predHor; ///prediction horizon
 int contHor; ///control horizon
 double Ts;
@@ -65,10 +67,12 @@ typedef struct
 
 
 void InitMPCType(structMPC *mpcptr,Model *modeldiscrete,MPCType type);
-void InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref);
+int InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref);
 void InitMPC(structMPC *mpcptr,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA);
 void MPC_Step(structMPC *mpcptr,gsl_matrix *xdata, gsl_matrix *u);
 /**returns the steady state values*/
 double* MPCcalcSS(structMPC *mpcptr, double *refr,double *input_dist, double *output_dist,gsl_matrix *Bd,gsl_matrix *Cref);
-void MPCpredmat(structMPC *mpc,MPCPredictionType predtype);
+int MPCpredmat(structMPC *mpcptr);
+int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbx, double *ubx);
+int StepMPCconstraints(structMPC *mpcptr,double *xdata);
 #endif

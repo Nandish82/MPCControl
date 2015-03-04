@@ -100,7 +100,12 @@ double b[]={0,1};
 double c[]={1,0};
 double d[]={0};
 
-int Ns,Nu,Ny;
+int Ns,Nu,Ny,Np,Nc;
+
+int i,j;
+
+Np=10;
+Nc=5;
 
 
   structMPC mpc,*mpcptr;
@@ -115,8 +120,8 @@ int Ns,Nu,Ny;
   assign_Mat(mpcptr->C,c);
   assign_Mat(mpcptr->D,d);
 
-  mpcptr->predHor=10;
-  mpcptr->contHor=5;
+  mpcptr->predHor=Np;
+  mpcptr->contHor=Nc;
 
   Ns=mpcptr->A->size1;
   Nu=mpcptr->B->size2;
@@ -131,13 +136,50 @@ int Ns,Nu,Ny;
  mpcptr->R=gsl_matrix_alloc(Nu,Nu);
  gsl_matrix_set_identity(mpcptr->R);
 
+mpcptr->predtype=OUTPUT;
+MPCpredmat(mpcptr);
 
- printf("MPC Prediction type%d %",mpcptr->predtype,mpcptr->type);
+  printf("Su:\n");
+  print2scr(mpcptr->Su);
 
-  mpcptr->predtype=OUTPUT;
-  printf("MPC Prediction type%d %d",mpcptr->predtype,mpcptr->type);
-  MPCpredmat(mpcptr,OUTPUT);
+double lbu[]={-1};
+double ubu[]={1};
 
+double lbx[]={-2,-3};
+double ubx[]={2,3};
+
+InitMPCconstraints(mpcptr,lbu,ubu,lbx,ubx);
+
+for(i=0;i++;i<Np*Ns)
+{
+    printf("\n");
+    for(j=0;j++;j<Nc*Nu)
+        printf("%5.0f ",mpcptr->suval[i*Nc*Nu+j]);
+}
+
+printf("Nu:%d Ns:%d Ny:%d Np:%d Nc:%d\n",Nu,Ns,Ny,Np,Nc);
+for(i=0;i<Nc*Nu;i++)
+    printf("%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
+
+    mpcptr->xss=malloc(Ns*sizeof(double));
+    mpcptr->uss=malloc(Nu*sizeof(double));
+
+    double xss[]={1,2};
+    for(i=0;i<Ns;i++)
+        mpcptr->xss[i]=xss[i];
+
+    double uss[]={0.5};
+    for(i=0;i<Ns;i++)
+        mpcptr->uss[i]=uss[i];
+
+    double xdata[]={0.2,-0.2};
+    StepMPCconstraints(mpcptr,xdata);
+
+for(i=0;i<Nc*Nu;i++)
+    printf("%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
+
+    for(i=0;i<Np*Ny;i++)
+    printf("%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
 
 return 0;
 }

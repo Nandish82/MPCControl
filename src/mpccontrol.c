@@ -99,32 +99,28 @@ void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type)
  *
  */
 
-void InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref)
+int InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref)
 {
     int Ns,Nu,Ny,i,j;
+
+    if(!((mpcptr->type==DELTA)||(mpcptr->type==NORMAL)))
+    {
+        printf("Error: MPC type has not been initialised");
+        return 2;
+    }
+
     if(mpcptr->type==DELTA)
     {
         Nu=mpcptr->B->size2;
         Ns=mpcptr->A->size1-Nu;
-        Ny=Cref->size1; ///Ny should be equal to the reference being tracked. To have a square matrix Ny[cref]=Nu
-
-        mpcptr->SteadyState=gsl_matrix_alloc(Ns+Ny,Ns+Nu);
-        for(i=0;i<Ns+Ny;i++)
-            for(j=0;j<Ns+Nu;j++)
-                if((i<Ns)&&(j<Ns))
-                    gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(mpcptr->A,i,j)-1);
-                else if((i<Ns)&&(j>=Ns))
-                    gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(mpcptr->B,i,j-Ns));
-                else if((i>=Ns)&&(j<Ns))
-                    gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(Cref,i-Ns,j));
-                 else if((i>=Ns)&&(j>=Ns))
-                    gsl_matrix_set(mpcptr->SteadyState,i,j,0);
+        Ny=Cref->size1;
     }
     else
     {
         Nu=mpcptr->B->size2;
-        Ns=mpcptr->A->size1;
+        Ns=mpcptr->A->size1-Nu;
         Ny=Cref->size1;
+    }
 
         mpcptr->SteadyState=gsl_matrix_alloc(Ns+Ny,Ns+Nu);
         for(i=0;i<Ns+Ny;i++)
@@ -136,14 +132,14 @@ void InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref)
                     else
                      gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(mpcptr->A,i,j));
                 }
-
                 else if((i<Ns)&&(j>=Ns))
                     gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(mpcptr->B,i,j-Ns));
                 else if((i>=Ns)&&(j<Ns))
                     gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(Cref,i-Ns,j));
                  else if((i>=Ns)&&(j>=Ns))
                     gsl_matrix_set(mpcptr->SteadyState,i,j,0);
-    }
+
+  return 1;
 }
 
 void InitMPC(structMPC *mpcptr,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA)
@@ -610,13 +606,18 @@ for(i=0;i<Nu;i++)
     free(cputime);
     gsl_matrix_free(Fxmat);
 }
-
-void MPCpredmat(structMPC *mpcptr,MPCPredictionType predtype)
+int MPCpredmat(structMPC *mpcptr)
 {
 
 int Ns,Nu,Ny,i,j,k,l,Np,Nc,Nsy;
 
 gsl_matrix *C;
+
+if(!((mpcptr->predtype==STATE) || (mpcptr->predtype==OUTPUT)))
+{
+    printf("MPC has not yet been initialised");
+    return 2;
+}
 
 Np=mpcptr->predHor;
 Nc=mpcptr->contHor; /// These two variable should have been set somewhere in InitMPC.
@@ -634,12 +635,23 @@ if(mpcptr->predtype==STATE)
     C=gsl_matrix_alloc(Ns,Ns);
     gsl_matrix_set_identity(C);
     Nsy=C->size1;
+        if((mpcptr->Q->size1!=Ns) && (mpcptr->P->size1!=Ns))
+        {
+            printf("[Error] Check Size of matrix Q and/or P\n");
+            return 2;
+        }
 }
 else
 {
     C=gsl_matrix_alloc(Ny,Ns);
     gsl_matrix_memcpy(C,mpcptr->C);
     Nsy=C->size1;
+
+    if((mpcptr->Q->size1!=Ny) && (mpcptr->P->size1!=Ns))
+        {
+            printf("[Error] Check Size of matrix Q and/or P\n");
+            return 2;
+        }
 }
 
 
@@ -657,7 +669,7 @@ Nc is the control Horizon
     // Qtildey=(Np*Ny) * (Np*Ny)
     // Rtildex=(Nc*Nu) * (Nc*Nu)
     // Rtildex=Rtildey
-    // H=Su'*Qtildexy*Su+Rtilde (Nc x Nu)*(Nc x Nu)
+    // H=Su'*Qtildexy*Su+Rt1ilde (Nc x Nu)*(Nc x Nu)
     // F=Su'*Qtildexy*Sx
     // G=
 
@@ -665,10 +677,10 @@ Nc is the control Horizon
 */
 
 ///Declare temporary matrices, they all have to be freed afterwards
-gsl_matrix *Su=gsl_matrix_alloc(Np*Nsy,Nc*Nu);
-gsl_matrix_set_all(Su,0);
-gsl_matrix *Sx=gsl_matrix_alloc(Np*Nsy,Ns);
-gsl_matrix_set_all(Sx,0);
+mpcptr->Su=gsl_matrix_alloc(Np*Nsy,Nc*Nu);
+gsl_matrix_set_all(mpcptr->Su,0);
+mpcptr->Sx=gsl_matrix_alloc(Np*Nsy,Ns);
+gsl_matrix_set_all(mpcptr->Sx,0);
 gsl_matrix *Qtilde=gsl_matrix_alloc(Np*Nsy,Np*Nsy);
 gsl_matrix_set_zero(Qtilde);
 gsl_matrix *Rtilde=gsl_matrix_alloc(Nc*Nu,Nc*Nu);
@@ -686,7 +698,7 @@ for(i=0;i<Np;i++)
 
         {
             tempCA=MatMul2(C,MatMulrec(mpcptr->A,i+1));
-             gsl_matrix_set(Sx,i*Nsy+k,l,gsl_matrix_get(tempCA,k,l));
+             gsl_matrix_set(mpcptr->Sx,i*Nsy+k,l,gsl_matrix_get(tempCA,k,l));
         }
         gsl_matrix_set_zero(tempCAB);
     for(j=0;j<Nc;j++)
@@ -696,7 +708,7 @@ for(i=0;i<Np;i++)
                tempCAB=MatMul2(C,MatMul2(MatMulrec(mpcptr->A,i-j),mpcptr->B));
                for(k=0;k<Nsy;k++)
                 for(l=0;l<Nu;l++)
-                gsl_matrix_set(Su,i*Nsy+k,j*Nu+l,gsl_matrix_get(tempCAB,k,l));
+                gsl_matrix_set(mpcptr->Su,i*Nsy+k,j*Nu+l,gsl_matrix_get(tempCAB,k,l));
            }
         gsl_matrix_set_zero(tempCAB);
         if((i>=j)&&i>=Nc)
@@ -709,7 +721,7 @@ for(i=0;i<Np;i++)
                 }
                  for(k=0;k<Nsy;k++)
                     for(l=0;l<Nu;l++)
-                        gsl_matrix_set(Su,i*Nsy+k,j*Nu+l,gsl_matrix_get(tempCAB,k,l));
+                        gsl_matrix_set(mpcptr->Su,i*Nsy+k,j*Nu+l,gsl_matrix_get(tempCAB,k,l));
                     gsl_matrix_set_zero(tempCAB);
 
             }
@@ -718,7 +730,7 @@ for(i=0;i<Np;i++)
                 tempCAB=MatMul2(C,MatMul2(MatMulrec(mpcptr->A,i-j),mpcptr->B));
                 for(k=0;k<C->size1;k++)
                     for(l=0;l<Nu;l++)
-                        gsl_matrix_set(Su,i*Nsy+k,j*Nu+l,gsl_matrix_get(tempCAB,k,l));
+                        gsl_matrix_set(mpcptr->Su,i*Nsy+k,j*Nu+l,gsl_matrix_get(tempCAB,k,l));
 
             }
         }
@@ -746,8 +758,6 @@ for(i=0;i<Np;i++)
     }
 }///end for loop
 
-printf("Qtilde\n");
-print2scr(Qtilde);
 ///Rtilde
 for(i=0;i<Nc;i++)
 {
@@ -757,26 +767,185 @@ for(i=0;i<Nc;i++)
             gsl_matrix_set(Rtilde,i*Nu+k,i*Nu+l,gsl_matrix_get(mpcptr->R,k,l));
 }
 
-print2scr(Rtilde);
+
 
 mpcptr->H=gsl_matrix_alloc(Nc*Nu,Nc*Nu);
-mpcptr->H=MatAdd2(MatMul2(MatTrans(Su),MatMul2(Qtilde,Su)),Rtilde);
+mpcptr->H=MatAdd2(MatMul2(MatTrans(mpcptr->Su),MatMul2(Qtilde,mpcptr->Su)),Rtilde);
 
 mpcptr->F=gsl_matrix_alloc(Nc*Nu,Ns);
-mpcptr->F=MatMul2(MatTrans(Su),MatMul2(Qtilde,Sx));
+mpcptr->F=MatMul2(MatTrans(mpcptr->Su),MatMul2(Qtilde,mpcptr->Sx));
 print2scr(mpcptr->F);
 
 mpcptr->G=gsl_matrix_alloc(Ns,Ns);
-mpcptr->G=MatAdd2(MatMul2(MatTrans(C),MatMul2(mpcptr->Q,C)),MatMul2(MatTrans(Sx),MatMul2(Qtilde,Sx)));
+mpcptr->G=MatAdd2(MatMul2(MatTrans(C),MatMul2(mpcptr->Q,C)),MatMul2(MatTrans(mpcptr->Sx),MatMul2(Qtilde,mpcptr->Sx)));
 
 print2scr(mpcptr->G);
 /***free matrices**/
-gsl_matrix_free(Su);
-gsl_matrix_free(Sx);
 gsl_matrix_free(Qtilde);
 gsl_matrix_free(Rtilde);
 gsl_matrix_free(tempCAB);
 gsl_matrix_free(tempCA);
 
+return 0;
+
 }
 
+/** \brief This function creates the matrices Axcon,bxcon,bucon.
+    In qpoases, the constraints has to be in the form
+    lbx<Ax<ubx
+    lbu<x<ubu
+    Since we have to optimise for the variable u or delta u in MPC control
+    our constraints become as follows
+    For input constraints
+    lbu<u+uss<ubu, size of u= Nc*Nu
+    For state/output contraints
+    lbx<(x+xss)<ubx
+    lbx-xss<x<ubx-xss
+    lbx-xss<Su.u+Sx.x<ubx-uss
+    lbs-xss-Sx.x<Su.u<ubx-xss-Sx.x..............1
+
+    As we see all the elements are already created in MPCpredmat and MPCsteadystate.
+    qpoases requires
+    number of variables to be optimised which is [Nc*Nu]
+    number of constraints is [Np*Ns]----rows of matrice Su
+
+    lbx can be either state or output constraint. This function casts everything into double from row form
+
+    There will be one function InitMPCconstraints where the constraints will be initialised and one StepMPCconstraints
+    where the constraints will be calculated and feeded to the qpoases algorithm.
+
+    Su is also called CM variable sometimes and Sx is called Mm variable sometimes.
+
+ *
+ * \param
+ * \param
+ * \return
+ *
+ */
+
+int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbx, double *ubx)
+{
+
+    ///size of lbu = Nu x 1
+    ///size of lbx =(Ns or Ny) x 1
+
+    int i,j,k,l; ///counters
+    int Ns,Nu,Ny,Np,Nc,Nsy;
+
+    Ns=mpcptr->A->size1;
+    Nu=mpcptr->B->size2;
+    Ny=mpcptr->C->size1;
+
+    Nc=mpcptr->contHor;
+    Np=mpcptr->predHor;
+
+
+
+
+
+
+    if(mpcptr->predtype==OUTPUT)
+    {
+        Nsy=Ny;
+    }
+    else if(mpcptr->predtype==STATE)
+    {
+        Nsy=Ns;
+
+    }
+    else
+    {
+        printf("\n Prediction type has not been initialised");
+        return 2; ///unsucessful
+    }
+     mpcptr->lb=malloc(Nc*Nu*sizeof(double));
+     mpcptr->ub=malloc(Nc*Nu*sizeof(double));
+
+     mpcptr->lbA=malloc(Np*Nsy*sizeof(double));
+     mpcptr->ubA=malloc(Np*Nsy*sizeof(double));
+
+     mpcptr->suval=malloc(Np*Nsy*Nc*Nu*sizeof(double));
+
+    for(i=0;i<Nc;i++)
+        for(j=0;j<Nu;j++)
+        {
+            mpcptr->lb[i*Nu+j]=lbu[j];
+            mpcptr->ub[i*Nu+j]=ubu[j];
+        }
+    for(i=0;i<Np;i++)
+        for(j=0;j<Nsy;j++)
+    {
+        mpcptr->lbA[i*Nsy+j]=lbx[j];
+        mpcptr->ubA[i*Nsy+j]=ubx[j];
+    }
+
+    for(i=0;i<Np*Nsy;i++)
+        for(j=0;j<Nc*Nu;j++)
+        mpcptr->suval[(i*Nc*Nu+j)]=gsl_matrix_get(mpcptr->Su,i,j);
+
+    return 0;
+
+}
+int StepMPCconstraints(structMPC *mpcptr,double *xdata)
+{
+    /**
+    In this function we will calculate
+    lbs-xss-Sx.x<Su.u<ubx-xss-Sx.x.
+    i.e lbA=lbx-xss-Sx.x
+        ubA=ubx-xss-Sx.x
+        lb=lbu-uss
+        ub=ubu-uss
+
+        We assume that the function StepSteadyMPC has calculated the values of xss and uss and stored it in the
+        variables mpcptr->xss and mpcptr->uss and has already initialised these latter arrays of doubles to their
+        correct size.
+
+
+    */
+
+
+    int Ns,Nu,Ny,Np,Nc,Nsy,i,j,k;
+
+    Ns=mpcptr->A->size1;
+    Nu=mpcptr->B->size2;
+    Ny=mpcptr->C->size1;
+
+    Np=mpcptr->predHor;
+    Nc=mpcptr->contHor;
+
+     if(mpcptr->predtype==OUTPUT)
+    {
+        Nsy=Ny;
+    }
+    else if(mpcptr->predtype==STATE)
+    {
+        Nsy=Ns;
+
+    }
+    else
+    {
+        printf("\n Prediction type has not been initialised");
+        return 2; ///unsucessful
+    }
+
+    double temp=0.0;
+
+    for(i=0;i<Np*Nsy;i++)
+    {
+           for(j=0;j<Ns;j++)
+            {
+                temp=temp+xdata[j]*gsl_matrix_get(mpcptr->Sx,i,j);
+            }
+        mpcptr->lbA[i]=mpcptr->lbA[i]-temp-mpcptr->xss[i%Nsy];///lbx=lbx-Sx.x-xss
+        mpcptr->ubA[i]=mpcptr->ubA[i]-temp-mpcptr->xss[i%Nsy];
+
+    }
+    for(i=0;i<Nc*Nu;i++)
+    {
+        mpcptr->lb[i]=mpcptr->lb[i]-mpcptr->uss[i%Nu];///lb=lb-uss
+        mpcptr->ub[i]=mpcptr->ub[i]-mpcptr->uss[i%Nu];
+    }
+
+    return 0;
+
+}
