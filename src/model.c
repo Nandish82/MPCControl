@@ -310,4 +310,19 @@ void InitSimModelAme(Model *m,gsl_matrix *X0,double Ts,double tsim)
     m->Ndatapoints=Ndatapoints;
 
 }
+void LoadDoubles(Model *m,double *a,double *b, double *c, double *d, double *x0,int Ns,int Nu,int Ny)
+{
+m->A=gsl_matrix_alloc(Ns,Ns);
+m->B=gsl_matrix_alloc(Ns,Nu);
+m->C=gsl_matrix_alloc(Ny,Ns);
+m->D=gsl_matrix_alloc(Ny,Nu);
+m->X0=gsl_matrix_alloc(Ns,1);
+
+assign_Mat(m->A,a);
+assign_Mat(m->B,b);
+assign_Mat(m->C,c);
+assign_Mat(m->D,d);
+assign_Mat(m->X0,x0);
+
+}
 

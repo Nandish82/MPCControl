@@ -94,89 +94,148 @@ fclose(pipe);
 
 int main (void)
 {
-
+/**********DECLARATION OF VARIABLES************************/
 double a[]={0,1,-2,-3};
 double b[]={0,1};
 double c[]={1,0};
 double d[]={0};
+double x0[]={0,0};
 
-int Ns,Nu,Ny,Np,Nc;
+int Ns=2,Nu=1,Ny=1,Np,Nc;
+int i,j; ///counters
 
-int i,j;
+///model
+Model model,*modelptr;
+structMPC mpc,*mpcptr;
 
-Np=10;
-Nc=5;
-
-
-  structMPC mpc,*mpcptr;
-  mpcptr=&mpc;
-  mpcptr->A=gsl_matrix_alloc(2,2);
-  mpcptr->B=gsl_matrix_alloc(2,1);
-  mpcptr->C=gsl_matrix_alloc(1,2);
-  mpcptr->D=gsl_matrix_alloc(1,1);
-
-  assign_Mat(mpcptr->A,a);
-  assign_Mat(mpcptr->B,b);
-  assign_Mat(mpcptr->C,c);
-  assign_Mat(mpcptr->D,d);
-
-  mpcptr->predHor=Np;
-  mpcptr->contHor=Nc;
-
-  Ns=mpcptr->A->size1;
-  Nu=mpcptr->B->size2;
-  Ny=mpcptr->C->size1;
-
-
-
- mpcptr->Q=gsl_matrix_alloc(Ny,Ny);
- gsl_matrix_set_identity(mpcptr->Q);
- mpcptr->P=gsl_matrix_alloc(Ny,Ny);
- gsl_matrix_memcpy(mpcptr->P,mpcptr->Q);
- mpcptr->R=gsl_matrix_alloc(Nu,Nu);
- gsl_matrix_set_identity(mpcptr->R);
-
-mpcptr->predtype=OUTPUT;
-MPCpredmat(mpcptr);
-
-  printf("Su:\n");
-  print2scr(mpcptr->Su);
-
+///constraints
 double lbu[]={-1};
 double ubu[]={1};
+double lbx[]={-5,-6};
+double ubx[]={5,6};//={5,6};
+double lby[]={-6};
+double uby[]={6};
 
-double lbx[]={-2,-3};
-double ubx[]={2,3};
+///weight matrices
+gsl_matrix *Qx=gsl_matrix_alloc(2,2);  ///state prediciton
+gsl_matrix_set_identity(Qx);
+gsl_matrix *Qy=gsl_matrix_alloc(1,1);  ///output prediciton
+gsl_matrix_set_identity(Qy);
+gsl_matrix *R=gsl_matrix_alloc(1,1);   ///input weight
+gsl_matrix_set_identity(R);
+gsl_matrix *Rrate=gsl_matrix_alloc(1,1); ///rate input weight.
+gsl_matrix_set_identity(Rrate);
 
-InitMPCconstraints(mpcptr,lbu,ubu,lbx,ubx);
+/**
+***
+***          | NORMAL      | DELTA
+---------------------------------------------
+      STATES | Q=[Qx]  R=R | Q=[Qx R] R=Rrate|
+---------------------------------------------
+      OUTPUT | Q=[Qy]  R=R | Q=[Qy] R=Rrate|
+---------------------------------------------
 
-for(i=0;i++;i<Np*Ns)
-{
-    printf("\n");
-    for(j=0;j++;j<Nc*Nu)
-        printf("%5.0f ",mpcptr->suval[i*Nc*Nu+j]);
-}
+/**************ASSIGNMENT OF VARIABLES*************/
+Np=10; ///predition horizon
+Nc=3; ///control horizon
 
-printf("Nu:%d Ns:%d Ny:%d Np:%d Nc:%d\n",Nu,Ns,Ny,Np,Nc);
+mpcptr=&mpc;
+modelptr=&model;
+LoadDoubles(modelptr,a,b,c,d,x0,Ns,Nu,Ny);
+
+InitMPCType(mpcptr,modelptr,DELTA,OUTPUT); ///sets model and type of formulation and type of prediction
+
+///AssignMPCweights(mpcptr,Q,R,Rrate); This has to be set.
+double qx[]={1,1};
+double qy[]={1};
+double r[]={1};
+double rrate[]={1};
+
+createDiagonal(Qx,qx);
+createDiagonal(Qy,qy);
+createDiagonal(R,r);
+createDiagonal(Rrate,rrate);
+
+gsl_matrix *Qdelta=gsl_matrix_alloc(Qx->size1+R->size1,Qx->size1+R->size1);
+
+///assuming moodel with output prediciton type and delta formulation
+mpcptr->Q=gsl_matrix_alloc(mpcptr->C->size1,mpcptr->C->size1); ///change if state predicition is used
+mpcptr->R=gsl_matrix_alloc(mpcptr->B->size2,mpcptr->B->size2);
+mpcptr->P=gsl_matrix_alloc(mpcptr->C->size1,mpcptr->C->size1);
+gsl_matrix_set_identity(mpcptr->Q);
+gsl_matrix_set_identity(mpcptr->P);
+gsl_matrix_set_identity(mpcptr->R);
+print2scr(mpcptr->Q);
+print2scr(mpcptr->R);
+print2scr(mpcptr->R);
+printf(" I am here");
+MPCpredmat(mpcptr,Np,Nc);
+
+InitMPCconstraints(mpcptr,lbu,ubu,lby,uby);
+
+
+print2scr(mpcptr->Su);
+
+print2scr(mpcptr->Sx);
+
+
+
+
+
+//
+//  structMPC mpc,*mpcptr;
+//  mpcptr=&mpc;
+//  mpcptr->A=gsl_matrix_alloc(2,2);
+//  mpcptr->B=gsl_matrix_alloc(2,1);
+//  mpcptr->C=gsl_matrix_alloc(1,2);
+//  mpcptr->D=gsl_matrix_alloc(1,1);
+//
+//  assign_Mat(mpcptr->A,a);
+//  assign_Mat(mpcptr->B,b);
+//  assign_Mat(mpcptr->C,c);
+//  assign_Mat(mpcptr->D,d);
+//
+//  mpcptr->predHor=Np;
+//  mpcptr->contHor=Nc;
+//
+//  Ns=mpcptr->A->size1;
+//  Nu=mpcptr->B->size2;
+//  Ny=mpcptr->C->size1;
+//
+//
+//
+// mpcptr->Q=gsl_matrix_alloc(Ny,Ny);
+// gsl_matrix_set_identity(mpcptr->Q);
+// mpcptr->P=gsl_matrix_alloc(Ny,Ny);
+// gsl_matrix_memcpy(mpcptr->P,mpcptr->Q);
+// mpcptr->R=gsl_matrix_alloc(Nu,Nu);
+// gsl_matrix_set_identity(mpcptr->R);
+//
+//mpcptr->predtype=OUTPUT;
+//MPCpredmat(mpcptr);
+//
+//  printf("Su:\n");
+//  print2scr(mpcptr->Su);
+//
+//double lbu[]={-1};
+//double ubu[]={1};
+//
+//double lbx[]={-2,-3};
+//double ubx[]={2,3};
+//
+//InitMPCconstraints(mpcptr,lbu,ubu,lbx,ubx);
+//
+//for(i=0;i++;i<Np*Ns)
+//{
+//    printf("\n");
+//    for(j=0;j++;j<Nc*Nu)
+//        printf("%5.0f ",mpcptr->suval[i*Nc*Nu+j]);
+//}
+//
+//printf("Nu:%d Ns:%d Ny:%d Np:%d Nc:%d\n",Nu,Ns,Ny,Np,Nc);
 for(i=0;i<Nc*Nu;i++)
     printf("%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
 
-    mpcptr->xss=malloc(Ns*sizeof(double));
-    mpcptr->uss=malloc(Nu*sizeof(double));
-
-    double xss[]={1,2};
-    for(i=0;i<Ns;i++)
-        mpcptr->xss[i]=xss[i];
-
-    double uss[]={0.5};
-    for(i=0;i<Ns;i++)
-        mpcptr->uss[i]=uss[i];
-
-    double xdata[]={0.2,-0.2};
-    StepMPCconstraints(mpcptr,xdata);
-
-for(i=0;i<Nc*Nu;i++)
-    printf("%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
 
     for(i=0;i<Np*Ny;i++)
     printf("%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);

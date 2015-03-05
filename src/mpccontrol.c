@@ -11,7 +11,7 @@
  */
 
 
-void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type)
+void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type,MPCPredictionType predtype)
 {
     int Ns,Nu,Ny; ///number of states, inputs and outputs
     int i,j;
@@ -20,6 +20,9 @@ void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type)
     Ns=modelptr->A->size1;
     Nu=modelptr->B->size2;
     Ny=modelptr->C->size1;
+
+    mpcptr->type==type;
+    mpcptr->predtype=predtype;
 
     printf("Ns:%d,Nu:%d,Ny:%d",Ns,Nu,Ny);
     if(type==NORMAL)
@@ -138,6 +141,9 @@ int InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref)
                     gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(Cref,i-Ns,j));
                  else if((i>=Ns)&&(j>=Ns))
                     gsl_matrix_set(mpcptr->SteadyState,i,j,0);
+
+    mpcptr->uss=malloc((Nu)*sizeof(double));
+    mpcptr->xss=malloc((Ns)*sizeof(double));
 
   return 1;
 }
@@ -606,10 +612,10 @@ for(i=0;i<Nu;i++)
     free(cputime);
     gsl_matrix_free(Fxmat);
 }
-int MPCpredmat(structMPC *mpcptr)
+int MPCpredmat(structMPC *mpcptr,int Np,int Nc)
 {
 
-int Ns,Nu,Ny,i,j,k,l,Np,Nc,Nsy;
+int Ns,Nu,Ny,i,j,k,l,Nsy;
 
 gsl_matrix *C;
 
@@ -619,14 +625,13 @@ if(!((mpcptr->predtype==STATE) || (mpcptr->predtype==OUTPUT)))
     return 2;
 }
 
-Np=mpcptr->predHor;
-Nc=mpcptr->contHor; /// These two variable should have been set somewhere in InitMPC.
+mpcptr->predHor=Np;
+mpcptr->contHor=Nc; /// These two variable should have been set somewhere in InitMPC.
 
 Ns=mpcptr->A->size1;
 Nu=mpcptr->B->size2;
 Ny=mpcptr->C->size1;
 
-//if(mpcptr->predtype==NULL)
 
 ///Nsy determines whether state or output matrices should be formed
 if(mpcptr->predtype==STATE)
@@ -679,6 +684,7 @@ Nc is the control Horizon
 ///Declare temporary matrices, they all have to be freed afterwards
 mpcptr->Su=gsl_matrix_alloc(Np*Nsy,Nc*Nu);
 gsl_matrix_set_all(mpcptr->Su,0);
+printf("here");
 mpcptr->Sx=gsl_matrix_alloc(Np*Nsy,Ns);
 gsl_matrix_set_all(mpcptr->Sx,0);
 gsl_matrix *Qtilde=gsl_matrix_alloc(Np*Nsy,Np*Nsy);
@@ -823,7 +829,7 @@ return 0;
  *
  */
 
-int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbx, double *ubx)
+int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, double *ubxy)
 {
 
     ///size of lbu = Nu x 1
@@ -875,8 +881,8 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbx, d
     for(i=0;i<Np;i++)
         for(j=0;j<Nsy;j++)
     {
-        mpcptr->lbA[i*Nsy+j]=lbx[j];
-        mpcptr->ubA[i*Nsy+j]=ubx[j];
+        mpcptr->lbA[i*Nsy+j]=lbxy[j];
+        mpcptr->ubA[i*Nsy+j]=ubxy[j];
     }
 
     for(i=0;i<Np*Nsy;i++)
@@ -942,10 +948,85 @@ int StepMPCconstraints(structMPC *mpcptr,double *xdata)
     }
     for(i=0;i<Nc*Nu;i++)
     {
-        mpcptr->lb[i]=mpcptr->lb[i]-mpcptr->uss[i%Nu];///lb=lb-uss
+        mpcptr->lb[i]=mpcptr->lb[i]-mpcptr->uss[i%Nu];///lb=lb-uss REMEMBER: lb is a Nc x Nu matrix whereas uss is an Nu, so values have to be repeated
+                                                        ///every Nu times. Same for xss
         mpcptr->ub[i]=mpcptr->ub[i]-mpcptr->uss[i%Nu];
     }
 
     return 0;
+
+}
+
+// TODO (ncalcha#1#): Find a way to assign weight depending on whether we are using state predicitions or output predicitions. Furthermore, it also depends whetehter we are using Delta representation or normal representation. ...
+//
+
+int AssignMPCWeights(structMPC *mpcptr,gsl_matrix *Q,gsl_matrix *R,gsl_matrix *Rrate)
+{
+    int Ns,Ny,Nu,i,j;
+
+    Ns=mpcptr->A->size1;
+    Nu=mpcptr->B->size2;
+    Ny=mpcptr->C->size1;
+
+    if(mpcptr->type==DELTA)
+    {
+        if(mpcptr->predtype==STATE)
+        {
+            mpcptr->Q=gsl_matrix_alloc(Ns,Ns);
+            gsl_matrix_set_zero(Q);
+
+
+        }
+    }
+
+return 0;
+}
+
+int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *outputdist, double *Bd, int Nid)
+{
+    ///Nid is the number of input disturbances
+    ///we dont need the number of output disturbance since we can obtain it from the number of tracked outputs.
+
+    /**
+    **  We are going to
+    ** inv[SteadyStateMatrix] * [-Bd*inputdist]    =[xss]
+                                [refr-outputdist]   [uss]
+    ** Here we are using the normal matrix not the DELTA formulation
+    */
+    int Ns,Nu,Ny,Nss,i,j,k;
+    double temp;
+
+    Nss=mpcptr->SteadyState->size1;
+    Ns=Nss-mpcptr->B->size2;
+    Nu=mpcptr->B->size2;
+    ///we cannot have more tracked outputs than inputs
+    ///else our steady state matrix is not square
+    /// and cannot be inverted.
+
+    gsl_matrix *RefBdx=gsl_matrix_alloc(Nss,1);
+
+    for(i=0;i<Ns+Nu;i++)
+    {
+        if(i<Ns)
+    {
+
+        for(j=0;j<Ns;j++)
+            for(k=0;k<Nid;k++)
+            temp=temp+Bd[k+Nid*j]*inputdist[k];
+         gsl_matrix_set(RefBdx,i,j,temp);
+         temp=0;
+    }
+        if(i>=Ns)
+            gsl_matrix_set(RefBdx,i,j,refr[i-Ns]-outputdist[i-Ns]);
+    }
+
+    gsl_matrix *ssmat=gsl_matrix_alloc(Nss,1);
+    ssmat=MatMul2(MatInv2(mpcptr->SteadyState),RefBdx);
+
+    for(i=0;i<Ns;i++)
+        mpcptr->xss[i]=gsl_matrix_get(ssmat,i,0);
+    for(i=0;i<Nu;i++)
+        mpcptr->uss[i]=gsl_matrix_get(ssmat,i+Ns,0);
+
 
 }
