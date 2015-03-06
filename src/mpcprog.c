@@ -94,239 +94,159 @@ fclose(pipe);
 
 int main (void)
 {
+/**********DECLARATION OF VARIABLES************************/
+double a[]={0,1,-2,-3};
+double b[]={0,1};
+double c[]={1,0};
+double d[]={0};
+double x0[]={0,0};
 
+int Ns=2,Nu=1,Ny=1,Np,Nc;
+int i,j; ///counters
 
-FILE *fmpc;
-Kalman_struc k,*k_p;
-double Ts=0.01;
-/*Simulation Time*/
-double tsim=20.0;
-long Npoints=tsim/Ts+1;
-gsl_matrix *u=gsl_matrix_alloc(1,Npoints);
-gsl_matrix_set_all(u,0); //all values of input to 1.
-int i,j;
-///Servo Simulation
-Model servoC,servoD, *ptr_servoC,*ptr_servoD;
-Simdata msim_servo,*msim_ptr_servo;
-msim_ptr_servo=&msim_servo;
-ptr_servoC=&servoC;
-ptr_servoD=&servoD;
-//Initialise model with file servojac
-ReadJac(ptr_servoC,"ServoMech_Model_.jac0");
-discretize_model(ptr_servoC,ptr_servoD,Ts);
+///model
+Model model,*modelptr;
+structMPC mpc,*mpcptr;
 
-gsl_matrix *Q=gsl_matrix_alloc(6,6);
-gsl_matrix *R=gsl_matrix_alloc(2,2);
-gsl_matrix_set_identity(Q);
+///constraints
+double lbu[]={-1};
+double ubu[]={1};
+double lbx[]={-5,-6};
+double ubx[]={5,6};//={5,6};
+double lby[]={-6};
+double uby[]={6};
+
+///weight matrices
+gsl_matrix *Qx=gsl_matrix_alloc(2,2);  ///state prediciton
+gsl_matrix_set_identity(Qx);
+gsl_matrix *Qy=gsl_matrix_alloc(1,1);  ///output prediciton
+gsl_matrix_set_identity(Qy);
+gsl_matrix *R=gsl_matrix_alloc(1,1);   ///input weight
 gsl_matrix_set_identity(R);
+gsl_matrix *Rrate=gsl_matrix_alloc(1,1); ///rate input weight.
+gsl_matrix_set_identity(Rrate);
+
+/**
+***
+***          | NORMAL      | DELTA
+---------------------------------------------
+      STATES | Q=[Qx]  R=R | Q=[Qx R] R=Rrate|
+---------------------------------------------
+      OUTPUT | Q=[Qy]  R=R | Q=[Qy] R=Rrate|
+---------------------------------------------
+
+/**************ASSIGNMENT OF VARIABLES*************/
+Np=10; ///predition horizon
+Nc=3; ///control horizon
+
+mpcptr=&mpc;
+modelptr=&model;
+LoadDoubles(modelptr,a,b,c,d,x0,Ns,Nu,Ny);
+
+InitMPCType(mpcptr,modelptr,DELTA,OUTPUT); ///sets model and type of formulation and type of prediction
+
+///AssignMPCweights(mpcptr,Q,R,Rrate); This has to be set.
+double qx[]={1,1};
+double qy[]={1};
+double r[]={1};
+double rrate[]={1};
+
+createDiagonal(Qx,qx);
+createDiagonal(Qy,qy);
+createDiagonal(R,r);
+createDiagonal(Rrate,rrate);
+
+gsl_matrix *Qdelta=gsl_matrix_alloc(Qx->size1+R->size1,Qx->size1+R->size1);
+
+///assuming moodel with output prediciton type and delta formulation
+mpcptr->Q=gsl_matrix_alloc(mpcptr->C->size1,mpcptr->C->size1); ///change if state predicition is used
+mpcptr->R=gsl_matrix_alloc(mpcptr->B->size2,mpcptr->B->size2);
+mpcptr->P=gsl_matrix_alloc(mpcptr->C->size1,mpcptr->C->size1);
+gsl_matrix_set_identity(mpcptr->Q);
+gsl_matrix_set_identity(mpcptr->P);
+gsl_matrix_set_identity(mpcptr->R);
+print2scr(mpcptr->Q);
+print2scr(mpcptr->R);
+print2scr(mpcptr->R);
+printf(" I am here");
+MPCpredmat(mpcptr,Np,Nc);
+
+InitMPCconstraints(mpcptr,lbu,ubu,lby,uby);
+
+gsl_matrix *Cref=gsl_matrix_alloc(1,2);
+gsl_matrix_set_zero(Cref);
+
+gsl_matrix_set(Cref,0,0,1);
+
+
+InitSteadyState(mpcptr,Cref);
+
+
+printf("Steady State Matrix\n");
+print2scr(mpcptr->SteadyState);
+
+
+
+
+
+
 //
- //Kalman_Init(Kalman_struc *Kalman,gsl_matrix *Qcov, gsl_matrix *Rcov,Model *m)
-k_p=&k;
-//print2scr(kalman_ptr->model->A);
-//print2scr(kalman_ptr->Q);
-gsl_matrix *X0=gsl_matrix_alloc(ptr_servoD->A->size1,1);
-gsl_matrix_set_all(X0,0);
-gsl_matrix *udata=gsl_matrix_alloc(ptr_servoD->B->size2,1);
-//InitSimModel(ptr_servoD,X0,Ts,tsim);
-gsl_matrix *ydis=gsl_matrix_alloc(ptr_servoD->C->size1,1);
-gsl_matrix_set(ydis,0,0,50);
-gsl_matrix_set(ydis,1,0,0.00);
-double lb1[]={-1000};
-double ub2[]={1000};
-printf("I am here....\n");
-MPC_struc mpckalman,*mpckalmanptr;
-mpckalmanptr=&mpckalman;
-double qmpcval2[]={1,1,1,1,1};
-double pmpcval2[]={1,1,1,1,1};
-
-double qmpcval[25];
-double pmpcval[25];
-for(i=0;i<25;i++)
-{
-   qmpcval[i]=0;
-   pmpcval[i]=0;
-}
-
-for(i=0;i<5;i++)
-{
-    qmpcval[i*6]=qmpcval2[i];
-    pmpcval[i*6]=pmpcval2[i];
-}
-
-
-
-gsl_matrix *Qmpckalman=gsl_matrix_alloc(ptr_servoD->A->size1,ptr_servoD->A->size1);
-gsl_matrix_set_all(Qmpckalman,0);
-gsl_matrix_set_identity(Qmpckalman);
-assign_Mat(Qmpckalman,qmpcval);
-gsl_matrix *Pmpckalman=gsl_matrix_alloc(ptr_servoD->A->size1,ptr_servoD->A->size1);
-gsl_matrix_set_identity(Pmpckalman);
-gsl_matrix_set_all(Pmpckalman,0);
-assign_Mat(Pmpckalman,pmpcval);
-double rmpcval[]={0.01};
-gsl_matrix *Rmpckalman=gsl_matrix_alloc(ptr_servoD->B->size2,ptr_servoD->B->size2);
-gsl_matrix_set_identity(Rmpckalman);
-assign_Mat(Rmpckalman,rmpcval);
-int cHorizon=10;
-double lbmpckalman[]={-1000};
-double ubmpckalman[]={1000};
-double lbAmpc[]={-1000,-1000,-1000,-100,-1000};
-double ubAmpc[]={1000,1000,1000,1000,1000};
-
-/**disturbance matrix Td*/
-double Bdval[]={0,0,0,-0.9549*Ts,0};
-gsl_matrix *Bd=gsl_matrix_alloc(5,1);
-assign_Mat(Bd,Bdval);
-/**end*/
-
-InitSimModel(ptr_servoD,X0,Ts,tsim,Bd);
-Kalman_Init_d_servo(k_p,ptr_servoD);
-InitMPC(mpckalmanptr,ptr_servoD,cHorizon,Qmpckalman,Pmpckalman,Rmpckalman,lbmpckalman,ubmpckalman,lbAmpc,ubAmpc);
-//InitStateConstraints(mpckalmanptr,lbAmpc,ubAmpc);
-double qkalmanval[]={1,1,1,1,1,100};
-gsl_matrix *qkalcov=gsl_matrix_alloc(6,6);
-gsl_matrix_set_all(qkalcov,0);
-for(i=0;i<6;i++)
-    gsl_matrix_set(qkalcov,i,i,qkalmanval[i]);
-gsl_matrix_memcpy(k_p->Q,qkalcov);
+//  structMPC mpc,*mpcptr;
+//  mpcptr=&mpc;
+//  mpcptr->A=gsl_matrix_alloc(2,2);
+//  mpcptr->B=gsl_matrix_alloc(2,1);
+//  mpcptr->C=gsl_matrix_alloc(1,2);
+//  mpcptr->D=gsl_matrix_alloc(1,1);
+//
+//  assign_Mat(mpcptr->A,a);
+//  assign_Mat(mpcptr->B,b);
+//  assign_Mat(mpcptr->C,c);
+//  assign_Mat(mpcptr->D,d);
+//
+//  mpcptr->predHor=Np;
+//  mpcptr->contHor=Nc;
+//
+//  Ns=mpcptr->A->size1;
+//  Nu=mpcptr->B->size2;
+//  Ny=mpcptr->C->size1;
+//
+//
+//
+// mpcptr->Q=gsl_matrix_alloc(Ny,Ny);
+// gsl_matrix_set_identity(mpcptr->Q);
+// mpcptr->P=gsl_matrix_alloc(Ny,Ny);
+// gsl_matrix_memcpy(mpcptr->P,mpcptr->Q);
+// mpcptr->R=gsl_matrix_alloc(Nu,Nu);
+// gsl_matrix_set_identity(mpcptr->R);
+//
+//mpcptr->predtype=OUTPUT;
+//MPCpredmat(mpcptr);
+//
+//  printf("Su:\n");
+//  print2scr(mpcptr->Su);
+//
+//double lbu[]={-1};
+//double ubu[]={1};
+//
+//double lbx[]={-2,-3};
+//double ubx[]={2,3};
+//
+//InitMPCconstraints(mpcptr,lbu,ubu,lbx,ubx);
+//
+//for(i=0;i++;i<Np*Ns)
+//{
+//    printf("\n");
+//    for(j=0;j++;j<Nc*Nu)
+//        printf("%5.0f ",mpcptr->suval[i*Nc*Nu+j]);
+//}
+//
+//printf("Nu:%d Ns:%d Ny:%d Np:%d Nc:%d\n",Nu,Ns,Ny,Np,Nc);
+for(i=0;i<Nc*Nu;i++)
+    printf("%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
 
 
-double x0mpc[]={0,0,0,0,0};
-assign_Mat(X0,x0mpc);
-//MPC_Step(mpckalmanptr,X0,u);
-
-
-
-
-gsl_matrix *umpc=gsl_matrix_alloc(ptr_servoD->B->size2,1);
-gsl_matrix_set_all(umpc,0);
-
-double refr[]={10};
-double input_dist[]={0};
-double output_dist[]={0};
-
-//gsl_matrix *Bd=gsl_matrix_alloc(mpckalmanptr->A->size1,1);
-//gsl_matrix_set_all(Bd,0);
-gsl_matrix *Cref=gsl_matrix_alloc(1,5);
-double Crefval[]={0,0,0,0,1};
-assign_Mat(Cref,Crefval);
-double *ssval=malloc(6*sizeof(double));
-ssval=MPCcalcSS(mpckalmanptr,refr,input_dist,output_dist,Bd,Cref);
-gsl_matrix *mpcxdata=gsl_matrix_alloc(5,1);
-assign_Mat(mpcxdata,x0mpc);
-
-/**building disturbance matrix*/
-gsl_matrix *torquedis=gsl_matrix_alloc(Npoints,1);
-gsl_matrix_set_all(torquedis,0);
-
-double torquedisval[Npoints];
-  /**Adding disturbance*/
-    for(i=0;i<Npoints;i++)
-    if(i*Ts<10)
-    {
-        gsl_matrix_set(torquedis,i,0,0);
-        torquedisval[i]=0;
-
-    }
-
-    else
-    {
-        gsl_matrix_set(torquedis,i,0,20.0);
-        torquedisval[i]=20;
-    }
-
-double *mpcxdataval=malloc(ptr_servoD->A->size2*sizeof(double));
-
-gsl_matrix_set_all(udata,50);
-
-print2scr(Qmpckalman);
-print2scr(Pmpckalman);
-//Npoints=3;
-int loop=1; //just to make the loop function for debuggin purposes
-if(loop==1)
-{
-
-/**LOOP*/
-for(j=1;j<Npoints;j++)
-{
-    if(j*Ts<3)
-        refr[0]=0;
-    else
-        refr[0]=10;
-
-    for(i=0;i<5;i++)
-    gsl_matrix_set(mpcxdata,i,0,gsl_matrix_get(k_p->xdata,i,0));
-    input_dist[0]=gsl_matrix_get(k_p->xdata,5,0);
-    ssval=MPCcalcSS(mpckalmanptr,refr,input_dist,output_dist,Bd,Cref);
-    /**recalculating the matrices to include the steady states*/
-    for(i=0;i<ptr_servoD->A->size2;i++)
-    {
-        gsl_matrix_set(mpcxdata,i,0,gsl_matrix_get(ptr_servoD->currxdata,i,0)-ssval[i]);
-        mpcxdataval[i]=gsl_matrix_get(ptr_servoD->currxdata,i,0)-ssval[i];
-    }
-
-    MPC_Step(mpckalmanptr,mpcxdata,umpc);
-    for(i=0;i<ptr_servoD->B->size2;i++)
-        gsl_matrix_set(udata,i,0,gsl_matrix_get(umpc,i,0)+ssval[i+ptr_servoD->A->size1]);
-
-   ModelStep(ptr_servoD,j,udata,torquedisval[j]);
-   //add disturbance to output
-   //ptr_servoD->currydata=MatAdd2(ydis,ptr_servoD->currydata);
-Kalman_Step2(k_p,ptr_servoD->currydata,udata,j);
-if(j==1)
-{
-fmpc=fopen("MPCcodeBout2.txt","w");
-fprintf(fmpc,"MPC--H\n");
-print2FileMat(mpckalmanptr->H,fmpc);
-fprintf(fmpc,"MPC--F\n");
-print2FileMat(mpckalmanptr->F,fmpc);
-fprintf(fmpc,"MPC--G\n");
-print2FileMat(mpckalmanptr->G,fmpc);
-fprintf(fmpc,"Kalman--A\n");
-print2FileMat(k_p->A,fmpc);
-fprintf(fmpc,"Kalman--B\n");
-print2FileMat(k_p->B,fmpc);
-fprintf(fmpc,"Kalman--C\n");
-print2FileMat(k_p->C,fmpc);
-fprintf(fmpc,"Kalman--D\n");
-print2FileMat(k_p->D,fmpc);
-fprintf(fmpc,"Kalman--Q\n");
-print2FileMat(k_p->Q,fmpc);
-fprintf(fmpc,"Kalman--R\n");
-print2FileMat(k_p->R,fmpc);
-fclose(fmpc);
-}
-}
-printModeldata(ptr_servoD,0,"statedata.dat");
-printKalmanData(k_p,0,"kalmandata2.dat");
-gnu_plot("plot 'statedata.dat' using 1:6 with lines\n");
-gnu_plot("plot 'kalmandata2.dat' using 1:7 with lines\n");
-gnu_plot("plot 'statedata.dat' using 1:2 with lines\n");
-gnu_plot("plot 'statedata.dat' using 1:5 with lines\n");
-}
-
-
-
-fmpc=fopen("MPCcodeBout.txt","w");
-fprintf(fmpc,"Matrix H:\n");
-print2FileMat(mpckalmanptr->H,fmpc);
-fprintf(fmpc,"Matrix F:\n");
-print2FileMat(mpckalmanptr->F,fmpc);
-fprintf(fmpc,"Matrix G:\n");
-print2FileMat(mpckalmanptr->G,fmpc);
-fprintf(fmpc,"Matrix Q:\n");
-print2FileMat(mpckalmanptr->Q,fmpc);
-fprintf(fmpc,"Matrix R:\n");
-print2FileMat(mpckalmanptr->R,fmpc);
-fprintf(fmpc,"Prediction Horizon:%d\n",mpckalmanptr->contHor);
-fprintf(fmpc,"Constrainsts: lb: %f ub: %f\n",mpckalmanptr->lb[5],mpckalmanptr->ub[5]);
-for(i=0;i<5;i++)
-    fprintf(fmpc,"xss[%d]:%f\n",i,mpckalmanptr->xss[i]);
-for(i=0;i<1;i++)
-    fprintf(fmpc,"uss[%d]:%f\n",i,mpckalmanptr->uss[i]);
-fclose(fmpc);
-
-
+    for(i=0;i<Np*Ny;i++)
+    printf("%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
 
 return 0;
 }

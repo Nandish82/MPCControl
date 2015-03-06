@@ -14,6 +14,7 @@ gsl_matrix *X0; //initial conditions.
 gsl_matrix *statedata;
 gsl_matrix *outputdata;
 gsl_matrix *Bd;
+int initfalg; //if model already initialised return 3
 double Ts; //sample time
 int step_value; //which time step we are
 gsl_matrix *currxdata; //the value of the currentdata
@@ -29,4 +30,5 @@ void printModeldata(Model *m,int s,char *filename);
 void ReadJac(Model *m,char *s);
 void discretize_model(Model *mc,Model *md,double Ts);
 void InitSimModelAme(Model *m,gsl_matrix *X0,double Ts,double tsim);
+void LoadDoubles(Model *m,double *a,double *b, double *c, double *d, double *x0,int Ns,int Nu,int Ny);
 #endif

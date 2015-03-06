@@ -2,7 +2,6 @@
 
 void print2File(gsl_matrix *m,double *time_v,char *filename)
 {
-
     FILE *fp;
     int rows;
     int cols;
@@ -200,5 +199,57 @@ void assignMatMat(gsl_matrix *m,gsl_matrix *n)
     for(i=0;i<m->size1;i++)
         for(j=0;j<m->size2;j++)
             gsl_matrix_set(m,i,j,gsl_matrix_get(n,i,j));
+
+}
+
+int Diag(gsl_matrix *OUT,gsl_matrix *IN1,gsl_matrix *IN2)
+{
+    int rows1,cols1,rows2,cols2,i,j;
+    rows1=IN1->size1;
+    cols1=IN1->size2;
+    rows2=IN2->size1;
+    cols2=IN2->size2;
+
+    if(!((rows2==cols2)&&(rows1==cols1)))
+    {
+        printf("[Error] Matrices are not square\n");
+        return 2;
+    }
+
+
+
+
+    gsl_matrix_set_zero(OUT);
+    printf("I am HERE");
+    for(i=0;i<rows1+rows2;i++)
+        for(j=0;j<cols1+cols2;j++)
+        {
+            if((i<rows1)&&(j<cols1))
+                gsl_matrix_set(OUT,i,j,gsl_matrix_get(IN1,i,j));
+            if((i>=rows1)&&(j>=cols1))
+                gsl_matrix_set(OUT,i,j,gsl_matrix_get(IN2,i-rows1,j-cols1));
+
+
+        }
+
+
+
+return 0;
+}
+
+int createDiagonal(gsl_matrix *OUT,double *in)
+{
+    int i;
+    if(OUT->size1!=OUT->size2)
+    {
+        printf("Matrix is not square");
+        return 2;
+    }
+    else
+    {
+        for(i=0;i<OUT->size1;i++)
+            gsl_matrix_set(OUT,i,i,in[i]);
+    }
+    return 0;
 
 }

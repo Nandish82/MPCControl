@@ -2,10 +2,12 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_vector.h>
 #include <gsl/gsl_linalg.h>
+
 
 void print2File(gsl_matrix *m,double *time_v,char *filename);
 
@@ -35,3 +37,5 @@ void assignMatMat(gsl_matrix *m,gsl_matrix *n);
 
 gsl_matrix* MatMulrec(gsl_matrix *m,int p);
 void print2FileMat(gsl_matrix *m,FILE *filename);
+int Diag(gsl_matrix *OUT,gsl_matrix *IN1,gsl_matrix *IN2);///takes two matrices and concatenates them diagonally
+int createDiagonal(gsl_matrix *OUT,double *in);
