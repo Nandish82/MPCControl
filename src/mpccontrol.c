@@ -111,18 +111,19 @@ int InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref)
         printf("Error: MPC type has not been initialised");
         return 2;
     }
-
     if(mpcptr->type==DELTA)
     {
         Nu=mpcptr->B->size2;
         Ns=mpcptr->A->size1-Nu;
         Ny=Cref->size1;
+        printf("Delta Ns:%d Nu:%d Ny:%d\n",Ns,Nu,Ny);
     }
     else
     {
         Nu=mpcptr->B->size2;
         Ns=mpcptr->A->size1-Nu;
         Ny=Cref->size1;
+        printf("Ns:%d Nu:%d Ny:%d\n",Ns,Nu,Ny);
     }
 
         mpcptr->SteadyState=gsl_matrix_alloc(Ns+Ny,Ns+Nu);

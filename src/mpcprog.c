@@ -173,10 +173,18 @@ MPCpredmat(mpcptr,Np,Nc);
 
 InitMPCconstraints(mpcptr,lbu,ubu,lby,uby);
 
+gsl_matrix *Cref=gsl_matrix_alloc(1,2);
+gsl_matrix_set_zero(Cref);
 
-print2scr(mpcptr->Su);
+gsl_matrix_set(Cref,0,0,1);
 
-print2scr(mpcptr->Sx);
+
+InitSteadyState(mpcptr,Cref);
+
+
+printf("Steady State Matrix\n");
+print2scr(mpcptr->SteadyState);
+
 
 
 
