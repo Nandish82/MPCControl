@@ -33,8 +33,8 @@ gsl_matrix *constraints;
 double *hval; /** size= cHorizon*Nu*cHorizon*Nu*/
 double *gval;
 double *fval;
-double *nV;
-double *nC;
+int nVar; ///number of variables to optimise [used by qpoases]....usually the [control horizon*control varialbles] Nu*Nc
+int nCon; ///number of constraints of the form lbX<u<lbU Np*Ns
 double *lb;
 double *ub;
 double *lbA;
@@ -68,7 +68,7 @@ typedef struct
 
 
 void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type,MPCPredictionType predtype);
-int InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref);
+int InitSteadyState(structMPC *mpcptr,double *Cref,int Ntr);
 void InitMPC(structMPC *mpcptr,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA);
 void MPC_Step(structMPC *mpcptr,gsl_matrix *xdata, gsl_matrix *u);
 /**returns the steady state values*/

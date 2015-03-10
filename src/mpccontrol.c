@@ -102,9 +102,11 @@ void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type,MPCPredictionTyp
  *
  */
 
-int InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref)
+int InitSteadyState(structMPC *mpcptr,double *Cref,int Ntr)
 {
     int Ns,Nu,Ny,i,j;
+
+    ///Ntr is number of tracked outputs.
 
     if(!((mpcptr->type==DELTA)||(mpcptr->type==NORMAL)))
     {
@@ -115,19 +117,24 @@ int InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref)
     {
         Nu=mpcptr->B->size2;
         Ns=mpcptr->A->size1-Nu;
-        Ny=Cref->size1;
+        Ny=mpcptr->C->size1;
         printf("Delta Ns:%d Nu:%d Ny:%d\n",Ns,Nu,Ny);
     }
     else
     {
         Nu=mpcptr->B->size2;
-        Ns=mpcptr->A->size1-Nu;
-        Ny=Cref->size1;
+        Ns=mpcptr->A->size1;
+        Ny=mpcptr->C->size1;
         printf("Ns:%d Nu:%d Ny:%d\n",Ns,Nu,Ny);
     }
+    if(Ntr!=Nu)
+    {
+        printf("Number of tracked outputs is greater than number of inputs. Infeasible");
+        return 2;
+    }
 
-        mpcptr->SteadyState=gsl_matrix_alloc(Ns+Ny,Ns+Nu);
-        for(i=0;i<Ns+Ny;i++)
+        mpcptr->SteadyState=gsl_matrix_alloc(Ns+Ntr,Ns+Nu);
+        for(i=0;i<Ns+Ntr;i++)
             for(j=0;j<Ns+Nu;j++)
                 if((i<Ns)&&(j<Ns))
                 {
@@ -139,7 +146,7 @@ int InitSteadyState(structMPC *mpcptr,gsl_matrix *Cref)
                 else if((i<Ns)&&(j>=Ns))
                     gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(mpcptr->B,i,j-Ns));
                 else if((i>=Ns)&&(j<Ns))
-                    gsl_matrix_set(mpcptr->SteadyState,i,j,gsl_matrix_get(Cref,i-Ns,j));
+                    gsl_matrix_set(mpcptr->SteadyState,i,j,Cref[j+(i-Ns)*Ntr]);
                  else if((i>=Ns)&&(j>=Ns))
                     gsl_matrix_set(mpcptr->SteadyState,i,j,0);
 
@@ -457,7 +464,7 @@ double* MPCcalcSS(structMPC *mpcptr, double *refr,double *input_dist, double *ou
 //    }
 //
 //     mpcptr->type=NORMAL;
-     InitSteadyState(mpcptr,Cref);
+//     InitSteadyState(mpcptr,Cref);
 
      //SSmat=MatMul2(MatInv2(invMat),RefBdX);
      SSmat=MatMul2(MatInv2(mpcptr->SteadyState),RefBdX);
@@ -685,7 +692,7 @@ Nc is the control Horizon
 ///Declare temporary matrices, they all have to be freed afterwards
 mpcptr->Su=gsl_matrix_alloc(Np*Nsy,Nc*Nu);
 gsl_matrix_set_all(mpcptr->Su,0);
-printf("here");
+printf("\n Here \n");
 mpcptr->Sx=gsl_matrix_alloc(Np*Nsy,Ns);
 gsl_matrix_set_all(mpcptr->Sx,0);
 gsl_matrix *Qtilde=gsl_matrix_alloc(Np*Nsy,Np*Nsy);
@@ -778,15 +785,16 @@ for(i=0;i<Nc;i++)
 
 mpcptr->H=gsl_matrix_alloc(Nc*Nu,Nc*Nu);
 mpcptr->H=MatAdd2(MatMul2(MatTrans(mpcptr->Su),MatMul2(Qtilde,mpcptr->Su)),Rtilde);
+print2scr(mpcptr->H);
 
 mpcptr->F=gsl_matrix_alloc(Nc*Nu,Ns);
 mpcptr->F=MatMul2(MatTrans(mpcptr->Su),MatMul2(Qtilde,mpcptr->Sx));
-print2scr(mpcptr->F);
+//print2scr(mpcptr->F);
 
 mpcptr->G=gsl_matrix_alloc(Ns,Ns);
 mpcptr->G=MatAdd2(MatMul2(MatTrans(C),MatMul2(mpcptr->Q,C)),MatMul2(MatTrans(mpcptr->Sx),MatMul2(Qtilde,mpcptr->Sx)));
 
-print2scr(mpcptr->G);
+//print2scr(mpcptr->G);
 /***free matrices**/
 gsl_matrix_free(Qtilde);
 gsl_matrix_free(Rtilde);
@@ -836,7 +844,7 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
     ///size of lbu = Nu x 1
     ///size of lbx =(Ns or Ny) x 1
 
- /*   int i,j,k,l; ///counters
+    int i,j,k,l; ///counters
     int Ns,Nu,Ny,Np,Nc,Nsy;
 
     Ns=mpcptr->A->size1;
@@ -886,9 +894,15 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
         mpcptr->ubA[i*Nsy+j]=ubxy[j];
     }
 
+    ///suval is required for the qpoases problem. So here we convert the Su matrix to suval double.
     for(i=0;i<Np*Nsy;i++)
         for(j=0;j<Nc*Nu;j++)
-        mpcptr->suval[(i*Nc*Nu+j)]=gsl_matrix_get(mpcptr->Su,i,j);*/
+        mpcptr->suval[(i*Nc*Nu+j)]=gsl_matrix_get(mpcptr->Su,i,j);
+
+    ///Assigning nCon and nVar
+
+    mpcptr->nCon=Nc*Nu;
+    mpcptr->nVar=Nsy*Np;
 
     return 0;
 
@@ -1050,5 +1064,6 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
     for(i=0;i<Nu;i++)
         mpcptr->uss[i]=gsl_matrix_get(ssmat,i+Ns,0);
 
+    free(RefBdx);
 return 0;
 }

@@ -101,15 +101,6 @@ double c[]={0,1,0,0,0,0,0,1,-128.2,128.2,0,0};
 double d[]={0,0,0};
 double x0[]={0,0,0,0};
 
-double nothing;
-
-int Ns=5,Nu=1,Ny=3,Np,Nc;
-int i,j; ///counters
-
-///model
-Model model,*modelptr;
-structMPC mpc,*mpcptr;
-
 ///Specific constraints
 double EL_ANGLE_MIN=-0.262;
 double EL_ANGLE_MAX=0.262;
@@ -123,8 +114,8 @@ double PITCH_ANGLE_MIN=-0.349;
 double ALTITUDE_MIN=-1000000;
 double ALTITUDE_MAX=1000000;
 
-double ALTITUDE_RATE_MAX=-1000000;
-double ALTITUDE_RATE_MIN=1000000;
+double ALTITUDE_RATE_MAX=1000000;
+double ALTITUDE_RATE_MIN=-1000000;
 
 
 ///constraints
@@ -134,6 +125,17 @@ double lbx[]={-100000,PITCH_ANGLE_MIN,-100000,-10000,EL_ANGLE_MIN}  ;
 double ubx[]={-100000,PITCH_ANGLE_MAX,-100000,-10000,EL_ANGLE_MAX};
 double lby[]={PITCH_ANGLE_MIN,ALTITUDE_MIN,ALTITUDE_RATE_MIN};
 double uby[]={PITCH_ANGLE_MAX,ALTITUDE_MAX,ALTITUDE_RATE_MAX};
+
+
+
+int Ns=4,Nu=1,Ny=3,Np,Nc;
+int i,j; ///counters
+
+///model
+Model model,*modelptr,modeld;
+structMPC mpc,*mpcptr;
+
+
 
 ///weight matrices
 gsl_matrix *Qx=gsl_matrix_alloc(4,4);  ///state prediciton
@@ -155,14 +157,20 @@ gsl_matrix_set_identity(Rrate);
 ---------------------------------------------
 
 /**************ASSIGNMENT OF VARIABLES*************/
-Np=10; ///predition horizon
+Np=5; ///predition horizon
 Nc=3; ///control horizon
 
 mpcptr=&mpc;
 modelptr=&model;
 LoadDoubles(modelptr,a,b,c,d,x0,Ns,Nu,Ny);
+discretize_model(modelptr,&modeld,0.5);
 
-InitMPCType(mpcptr,modelptr,DELTA,OUTPUT); ///sets model and type of formulation and type of prediction
+printf("Model\n");
+print2scr(modelptr->A);
+print2scr(modelptr->B);
+print2scr(modelptr->C);
+print2scr(modelptr->D);
+
 
 ///AssignMPCweights(mpcptr,Q,R,Rrate); This has to be set.
 double qx[]={1,1,1,1};
@@ -175,8 +183,49 @@ createDiagonal(Qy,qy);
 createDiagonal(R,r);
 createDiagonal(Rrate,rrate);
 
+///this has to be done in a function. I am exceptionally doing it here
+mpcptr->Q=gsl_matrix_alloc(Qy->size1,Qy->size2);
+mpcptr->P=gsl_matrix_alloc(Qy->size1,Qy->size2);
+mpcptr->R=gsl_matrix_alloc(Rrate->size1,Rrate->size2);
 
-//
+gsl_matrix_memcpy(mpcptr->Q,Qy);
+gsl_matrix_memcpy(mpcptr->P,Qy);
+gsl_matrix_memcpy(mpcptr->R,Rrate);
+
+print2scr(mpcptr->Q);
+
+print2scr(mpcptr->P);
+
+print2scr(mpcptr->R);
+
+///********************************************************************
+
+InitMPCType(mpcptr,&modeld,DELTA,OUTPUT); ///sets model and type of formulation and type of prediction
+/// FUNCTION TO ASSIGN WEIGHTS MISSING
+MPCpredmat(mpcptr,Np,Nc);
+InitMPCconstraints(mpcptr,lbu,ubu,lby,uby);
+
+
+///states=[xxx pitch angle xxx altitude]
+///outputs=[pitch angle altitude altitude rate]
+///we want to control the altitude so
+double Cref[]={0,0,0,1};
+InitSteadyState(mpcptr,Cref,1);
+printf("Steady State Matrix\n");
+print2scr(mpcptr->SteadyState);
+
+
+printf("Constant Constraints Matrices\n");
+for(i=0;i<Nc*Nu;i++)
+    printf("%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
+
+
+    for(i=0;i<Np*Ny;i++)
+    printf("%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
+
+
+printf("nC:%d nV:%d",mpcptr->nVar,mpcptr->nCon);
+
 //gsl_matrix *Qdelta=gsl_matrix_alloc(Qx->size1+R->size1,Qx->size1+R->size1);
 //
 /////assuming moodel with output prediciton type and delta formulation
