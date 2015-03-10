@@ -627,7 +627,7 @@ if(!((mpcptr->predtype==STATE) || (mpcptr->predtype==OUTPUT)))
 }
 
 mpcptr->predHor=Np;
-mpcptr->contHor=Nc; /// These two variable should have been set somewhere in InitMPC.
+mpcptr->contHor=Nc; ///
 
 Ns=mpcptr->A->size1;
 Nu=mpcptr->B->size2;
@@ -705,7 +705,7 @@ for(i=0;i<Np;i++)
 
         {
             tempCA=MatMul2(C,MatMulrec(mpcptr->A,i+1));
-             gsl_matrix_set(mpcptr->Sx,i*Nsy+k,l,gsl_matrix_get(tempCA,k,l));
+             gsl_matrix_set(mpcptr->Sx,i*Nsy+k,l,gsl_matrix_get(tempCA,k,l));///C*(A)^(n-1)
         }
         gsl_matrix_set_zero(tempCAB);
     for(j=0;j<Nc;j++)
@@ -836,7 +836,7 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
     ///size of lbu = Nu x 1
     ///size of lbx =(Ns or Ny) x 1
 
-    int i,j,k,l; ///counters
+ /*   int i,j,k,l; ///counters
     int Ns,Nu,Ny,Np,Nc,Nsy;
 
     Ns=mpcptr->A->size1;
@@ -888,7 +888,7 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
 
     for(i=0;i<Np*Nsy;i++)
         for(j=0;j<Nc*Nu;j++)
-        mpcptr->suval[(i*Nc*Nu+j)]=gsl_matrix_get(mpcptr->Su,i,j);
+        mpcptr->suval[(i*Nc*Nu+j)]=gsl_matrix_get(mpcptr->Su,i,j);*/
 
     return 0;
 
@@ -941,7 +941,7 @@ int StepMPCconstraints(structMPC *mpcptr,double *xdata)
     {
            for(j=0;j<Ns;j++)
             {
-                temp=temp+xdata[j]*gsl_matrix_get(mpcptr->Sx,i,j);
+                temp=temp+xdata[j]*gsl_matrix_get(mpcptr->Sx,i,j);///Sx.x
             }
         mpcptr->lbA[i]=mpcptr->lbA[i]-temp-mpcptr->xss[i%Nsy];///lbx=lbx-Sx.x-xss
         mpcptr->ubA[i]=mpcptr->ubA[i]-temp-mpcptr->xss[i%Nsy];
@@ -975,17 +975,38 @@ int AssignMPCWeights(structMPC *mpcptr,gsl_matrix *Q,gsl_matrix *R,gsl_matrix *R
         {
             mpcptr->Q=gsl_matrix_alloc(Ns,Ns);
             gsl_matrix_set_zero(Q);
+            for(i=0;i<Ns;i++)
+            {
+                if(i<Ns-Nu)
+                    gsl_matrix_set(mpcptr->Q,i,i,gsl_matrix_get(Q,i,i));
+                else
+                    gsl_matrix_set(mpcptr->Q,i,i,gsl_matrix_get(R,i-Ns,i-Ns));
 
+            }
 
         }
+
+
+        if(mpcptr->predtype==OUTPUT)
+        {
+            mpcptr->Q=gsl_matrix_alloc(Ns,Ns);
+            gsl_matrix_set_zero(Q);
+            for(i=0;i<Ns;i++)
+            {
+                if(i<Ns-Nu)
+                    gsl_matrix_set(mpcptr->Q,i,i,gsl_matrix_get(Q,i,i));
+                else
+                    gsl_matrix_set(mpcptr->Q,i,i,gsl_matrix_get(R,i-Ns,i-Ns));
+
+            }
     }
 
-return 0;
+}
 }
 
 int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *outputdist, double *Bd, int Nid)
 {
-    ///Nid is the number of input disturbances
+   ///Nid is the number of input disturbances
     ///we dont need the number of output disturbance since we can obtain it from the number of tracked outputs.
 
     /**
@@ -994,7 +1015,7 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
                                 [refr-outputdist]   [uss]
     ** Here we are using the normal matrix not the DELTA formulation
     */
-    int Ns,Nu,Ny,Nss,i,j,k;
+   int Ns,Nu,Ny,Nss,i,j,k;
     double temp;
 
     Nss=mpcptr->SteadyState->size1;
@@ -1029,5 +1050,5 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
     for(i=0;i<Nu;i++)
         mpcptr->uss[i]=gsl_matrix_get(ssmat,i+Ns,0);
 
-
+return 0;
 }

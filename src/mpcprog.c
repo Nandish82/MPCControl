@@ -95,31 +95,50 @@ fclose(pipe);
 int main (void)
 {
 /**********DECLARATION OF VARIABLES************************/
-double a[]={0,1,-2,-3};
-double b[]={0,1};
-double c[]={1,0};
-double d[]={0};
-double x0[]={0,0};
+double a[]={-1.2822,0,0.98,0,0,0,1,0,-5.4293,0,-1.8366,0,-128.2,128.2,0,0};
+double b[]={-0.3,0,-17,0};
+double c[]={0,1,0,0,0,0,0,1,-128.2,128.2,0,0};
+double d[]={0,0,0};
+double x0[]={0,0,0,0};
 
-int Ns=2,Nu=1,Ny=1,Np,Nc;
+double nothing;
+
+int Ns=5,Nu=1,Ny=3,Np,Nc;
 int i,j; ///counters
 
 ///model
 Model model,*modelptr;
 structMPC mpc,*mpcptr;
 
+///Specific constraints
+double EL_ANGLE_MIN=-0.262;
+double EL_ANGLE_MAX=0.262;
+
+double EL_SLEW_MAX=0.524;
+double EL_SLEW_MIN=-0.524;
+
+double PITCH_ANGLE_MAX=0.349;
+double PITCH_ANGLE_MIN=-0.349;
+
+double ALTITUDE_MIN=-1000000;
+double ALTITUDE_MAX=1000000;
+
+double ALTITUDE_RATE_MAX=-1000000;
+double ALTITUDE_RATE_MIN=1000000;
+
+
 ///constraints
-double lbu[]={-1};
-double ubu[]={1};
-double lbx[]={-5,-6};
-double ubx[]={5,6};//={5,6};
-double lby[]={-6};
-double uby[]={6};
+double lbu[]={EL_SLEW_MIN};
+double ubu[]={EL_SLEW_MAX};
+double lbx[]={-100000,PITCH_ANGLE_MIN,-100000,-10000,EL_ANGLE_MIN}  ;
+double ubx[]={-100000,PITCH_ANGLE_MAX,-100000,-10000,EL_ANGLE_MAX};
+double lby[]={PITCH_ANGLE_MIN,ALTITUDE_MIN,ALTITUDE_RATE_MIN};
+double uby[]={PITCH_ANGLE_MAX,ALTITUDE_MAX,ALTITUDE_RATE_MAX};
 
 ///weight matrices
-gsl_matrix *Qx=gsl_matrix_alloc(2,2);  ///state prediciton
+gsl_matrix *Qx=gsl_matrix_alloc(4,4);  ///state prediciton
 gsl_matrix_set_identity(Qx);
-gsl_matrix *Qy=gsl_matrix_alloc(1,1);  ///output prediciton
+gsl_matrix *Qy=gsl_matrix_alloc(3,3);  ///output prediciton
 gsl_matrix_set_identity(Qy);
 gsl_matrix *R=gsl_matrix_alloc(1,1);   ///input weight
 gsl_matrix_set_identity(R);
@@ -146,44 +165,46 @@ LoadDoubles(modelptr,a,b,c,d,x0,Ns,Nu,Ny);
 InitMPCType(mpcptr,modelptr,DELTA,OUTPUT); ///sets model and type of formulation and type of prediction
 
 ///AssignMPCweights(mpcptr,Q,R,Rrate); This has to be set.
-double qx[]={1,1};
-double qy[]={1};
+double qx[]={1,1,1,1};
+double qy[]={1,1,1};
 double r[]={1};
 double rrate[]={1};
-
+//
 createDiagonal(Qx,qx);
 createDiagonal(Qy,qy);
 createDiagonal(R,r);
 createDiagonal(Rrate,rrate);
 
-gsl_matrix *Qdelta=gsl_matrix_alloc(Qx->size1+R->size1,Qx->size1+R->size1);
 
-///assuming moodel with output prediciton type and delta formulation
-mpcptr->Q=gsl_matrix_alloc(mpcptr->C->size1,mpcptr->C->size1); ///change if state predicition is used
-mpcptr->R=gsl_matrix_alloc(mpcptr->B->size2,mpcptr->B->size2);
-mpcptr->P=gsl_matrix_alloc(mpcptr->C->size1,mpcptr->C->size1);
-gsl_matrix_set_identity(mpcptr->Q);
-gsl_matrix_set_identity(mpcptr->P);
-gsl_matrix_set_identity(mpcptr->R);
-print2scr(mpcptr->Q);
-print2scr(mpcptr->R);
-print2scr(mpcptr->R);
-printf(" I am here");
-MPCpredmat(mpcptr,Np,Nc);
-
-InitMPCconstraints(mpcptr,lbu,ubu,lby,uby);
-
-gsl_matrix *Cref=gsl_matrix_alloc(1,2);
-gsl_matrix_set_zero(Cref);
-
-gsl_matrix_set(Cref,0,0,1);
-
-
-InitSteadyState(mpcptr,Cref);
-
-
-printf("Steady State Matrix\n");
-print2scr(mpcptr->SteadyState);
+//
+//gsl_matrix *Qdelta=gsl_matrix_alloc(Qx->size1+R->size1,Qx->size1+R->size1);
+//
+/////assuming moodel with output prediciton type and delta formulation
+//mpcptr->Q=gsl_matrix_alloc(mpcptr->C->size1,mpcptr->C->size1); ///change if state predicition is used
+//mpcptr->R=gsl_matrix_alloc(mpcptr->B->size2,mpcptr->B->size2);
+//mpcptr->P=gsl_matrix_alloc(mpcptr->C->size1,mpcptr->C->size1);
+//gsl_matrix_set_identity(mpcptr->Q);
+//gsl_matrix_set_identity(mpcptr->P);
+//gsl_matrix_set_identity(mpcptr->R);
+//print2scr(mpcptr->Q);
+//print2scr(mpcptr->R);
+//print2scr(mpcptr->R);
+//printf(" I am here");
+//MPCpredmat(mpcptr,Np,Nc);
+//
+//InitMPCconstraints(mpcptr,lbu,ubu,lby,uby);
+//
+//gsl_matrix *Cref=gsl_matrix_alloc(1,2);
+//gsl_matrix_set_zero(Cref);
+//
+//gsl_matrix_set(Cref,0,0,1);
+//
+//
+//InitSteadyState(mpcptr,Cref);
+//
+//
+//printf("Steady State Matrix\n");
+//print2scr(mpcptr->SteadyState);
 
 
 
@@ -240,13 +261,13 @@ print2scr(mpcptr->SteadyState);
 //        printf("%5.0f ",mpcptr->suval[i*Nc*Nu+j]);
 //}
 //
-//printf("Nu:%d Ns:%d Ny:%d Np:%d Nc:%d\n",Nu,Ns,Ny,Np,Nc);
-for(i=0;i<Nc*Nu;i++)
-    printf("%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
-
-
-    for(i=0;i<Np*Ny;i++)
-    printf("%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
+////printf("Nu:%d Ns:%d Ny:%d Np:%d Nc:%d\n",Nu,Ns,Ny,Np,Nc);
+//for(i=0;i<Nc*Nu;i++)
+//    printf("%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
+//
+//
+//    for(i=0;i<Np*Ny;i++)
+//    printf("%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
 
 return 0;
 }
