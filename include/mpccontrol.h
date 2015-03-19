@@ -79,4 +79,5 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbx, d
 int AssignMPCWeights(structMPC *mpcptr,gsl_matrix *Q,gsl_matrix *R,gsl_matrix *Rrate);
 int StepMPCconstraints(structMPC *mpcptr,double *xdata);
 int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *outputdist, double *Bd, int Nid);
+int StepMPC(structMPC *mpcptr,double *x,double *u);
 #endif

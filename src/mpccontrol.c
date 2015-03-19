@@ -1049,7 +1049,7 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
         for(j=0;j<Ns;j++)
             for(k=0;k<Nid;k++)
             temp=temp+Bd[k+Nid*j]*inputdist[k];
-         gsl_matrix_set(RefBdx,i,j,temp);
+         gsl_matrix_set(RefBdx,i,j,-temp);
          temp=0;
     }
         if(i>=Ns)
@@ -1065,5 +1065,27 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
         mpcptr->uss[i]=gsl_matrix_get(ssmat,i+Ns,0);
 
     free(RefBdx);
+    free(ssmat);
 return 0;
+}
+int StepMPC(structMPC *mpcptr,double *x,double *u)
+{
+    int Ns,Nu,Ny,i,j;
+
+    if(mpcptr->type==DELTA)
+    {
+        Nu=mpcptr->B->size2;
+        Ns=mpcptr->A->size1-Nu;
+        Ny=mpcptr->C->size1;
+    }
+
+    else
+    {
+         Nu=mpcptr->B->size2;
+        Ns=mpcptr->A->size1;
+        Ny=mpcptr->C->size1;
+    }
+    ///FOR Delta formulation
+    StepMPCconstraints(mpcptr,x);
+
 }

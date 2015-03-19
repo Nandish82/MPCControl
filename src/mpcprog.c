@@ -225,6 +225,7 @@ for(i=0;i<Nc*Nu;i++)
 
 
 printf("nC:%d nV:%d",mpcptr->nVar,mpcptr->nCon);
+print2scr(mpcptr->C);
 
 //gsl_matrix *Qdelta=gsl_matrix_alloc(Qx->size1+R->size1,Qx->size1+R->size1);
 //
