@@ -35,10 +35,10 @@ double *gval;
 double *fval;
 int nVar; ///number of variables to optimise [used by qpoases]....usually the [control horizon*control varialbles] Nu*Nc
 int nCon; ///number of constraints of the form lbX<u<lbU Np*Ns
-double *lb;
-double *ub;
-double *lbA;
-double *ubA;
+double *lb,*lbuss; ///lbuss adjusts the values after steady state has been calculated.
+double *ub,*ubuss;
+double *lbA,*lbAxss;
+double *ubA,*ubAxss;
 double *lbAMX;
 double *ubAMX;
 gsl_matrix *CM;

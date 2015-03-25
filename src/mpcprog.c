@@ -69,13 +69,13 @@ void gnu_plot(char *c)
 {
 char d[100]="plot '";
 
-//strcat(d,c);
-//strcat(d,"' using 1:2 with lines\n");
+strcat(d,c);
+strcat(d,"' using 1:3 with lines\n");
 FILE *pipe = popen("gnuplot -persist","w");
 //fprintf(pipe, "set terminal wxt\n");
 //fprintf(pipe, "set output 'test.png'\n");
 //fprintf(pipe,"set multiplot\n");
-//fprintf(pipe,d);
+fprintf(pipe,d);
 //fprintf(pipe,"plot 'test.dat' using 1:2 with lines\n");
 //fprintf(pipe,"plot 'kalman.dat' using 1:2 with lines, 'test.dat' using 1:2 with lines\n");
 //fprintf(pipe,"plot 'kalman.dat' using 1:7 with lines\n");
@@ -101,6 +101,9 @@ double c[]={0,1,0,0,0,0,0,1,-128.2,128.2,0,0};
 double d[]={0,0,0};
 double x0[]={0,0,0,0};
 
+char *model_file="airplane.jac0";
+
+
 ///Specific constraints
 double EL_ANGLE_MIN=-0.262;
 double EL_ANGLE_MAX=0.262;
@@ -123,8 +126,8 @@ double lbu[]={EL_SLEW_MIN};
 double ubu[]={EL_SLEW_MAX};
 double lbx[]={-100000,PITCH_ANGLE_MIN,-100000,-10000,EL_ANGLE_MIN}  ;
 double ubx[]={-100000,PITCH_ANGLE_MAX,-100000,-10000,EL_ANGLE_MAX};
-double lby[]={PITCH_ANGLE_MIN,ALTITUDE_MIN,ALTITUDE_RATE_MIN};
-double uby[]={PITCH_ANGLE_MAX,ALTITUDE_MAX,ALTITUDE_RATE_MAX};
+double lby[]={PITCH_ANGLE_MIN,ALTITUDE_MIN,ALTITUDE_RATE_MIN,EL_ANGLE_MIN};
+double uby[]={PITCH_ANGLE_MAX,ALTITUDE_MAX,ALTITUDE_RATE_MAX,EL_ANGLE_MAX};
 
 
 
@@ -132,7 +135,7 @@ int Ns=4,Nu=1,Ny=3,Np,Nc;
 int i,j; ///counters
 
 ///model
-Model model,*modelptr,modeld;
+Model model,*modelptr,modeld,*modeldptr;
 structMPC mpc,*mpcptr;
 
 
@@ -140,7 +143,7 @@ structMPC mpc,*mpcptr;
 ///weight matrices
 gsl_matrix *Qx=gsl_matrix_alloc(4,4);  ///state prediciton
 gsl_matrix_set_identity(Qx);
-gsl_matrix *Qy=gsl_matrix_alloc(3,3);  ///output prediciton
+gsl_matrix *Qy=gsl_matrix_alloc(4,4);  ///output prediciton
 gsl_matrix_set_identity(Qy);
 gsl_matrix *R=gsl_matrix_alloc(1,1);   ///input weight
 gsl_matrix_set_identity(R);
@@ -153,20 +156,25 @@ gsl_matrix_set_identity(Rrate);
 ---------------------------------------------
       STATES | Q=[Qx]  R=R | Q=[Qx R] R=Rrate|
 ---------------------------------------------
-      OUTPUT | Q=[Qy]  R=R | Q=[Qy] R=Rrate|
+      OUTPUT | Q=[Qy]  R=R | Q=[Qy R] R=Rrate|
 ---------------------------------------------
 
 /**************ASSIGNMENT OF VARIABLES*************/
-Np=5; ///predition horizon
+Np=10; ///predition horizon
 Nc=3; ///control horizon
 
 mpcptr=&mpc;
 modelptr=&model;
-LoadDoubles(modelptr,a,b,c,d,x0,Ns,Nu,Ny);
-discretize_model(modelptr,&modeld,0.5);
-
+modeldptr=&modeld;
+ReadJac(modelptr,model_file);
+//LoadDoubles(modelptr,a,b,c,d,x0,Ns,Nu,Ny);
+discretize_model(modelptr,modeldptr,0.5);
+//DiscrModel(modelptr,modeldptr,0.5);
 printf("Model\n");
+printf("A matrix\n");
 print2scr(modelptr->A);
+print2scr(modeldptr->A);
+printf("B matrix\n");
 print2scr(modelptr->B);
 print2scr(modelptr->C);
 print2scr(modelptr->D);
@@ -174,7 +182,7 @@ print2scr(modelptr->D);
 
 ///AssignMPCweights(mpcptr,Q,R,Rrate); This has to be set.
 double qx[]={1,1,1,1};
-double qy[]={1,1,1};
+double qy[]={1,1,1,1};
 double r[]={1};
 double rrate[]={1};
 //
@@ -200,7 +208,7 @@ print2scr(mpcptr->R);
 
 ///********************************************************************
 
-InitMPCType(mpcptr,&modeld,DELTA,OUTPUT); ///sets model and type of formulation and type of prediction
+InitMPCType(mpcptr,modeldptr,DELTA,OUTPUT); ///sets model and type of formulation and type of prediction
 /// FUNCTION TO ASSIGN WEIGHTS MISSING
 MPCpredmat(mpcptr,Np,Nc);
 InitMPCconstraints(mpcptr,lbu,ubu,lby,uby);
@@ -226,99 +234,50 @@ for(i=0;i<Nc*Nu;i++)
 
 printf("nC:%d nV:%d",mpcptr->nVar,mpcptr->nCon);
 print2scr(mpcptr->C);
+print2scr(mpcptr->H);
+print2scr(mpcptr->F);
+print2scr(mpcptr->G);
 
-//gsl_matrix *Qdelta=gsl_matrix_alloc(Qx->size1+R->size1,Qx->size1+R->size1);
-//
-/////assuming moodel with output prediciton type and delta formulation
-//mpcptr->Q=gsl_matrix_alloc(mpcptr->C->size1,mpcptr->C->size1); ///change if state predicition is used
-//mpcptr->R=gsl_matrix_alloc(mpcptr->B->size2,mpcptr->B->size2);
-//mpcptr->P=gsl_matrix_alloc(mpcptr->C->size1,mpcptr->C->size1);
-//gsl_matrix_set_identity(mpcptr->Q);
-//gsl_matrix_set_identity(mpcptr->P);
-//gsl_matrix_set_identity(mpcptr->R);
-//print2scr(mpcptr->Q);
-//print2scr(mpcptr->R);
-//print2scr(mpcptr->R);
-//printf(" I am here");
-//MPCpredmat(mpcptr,Np,Nc);
-//
-//InitMPCconstraints(mpcptr,lbu,ubu,lby,uby);
-//
-//gsl_matrix *Cref=gsl_matrix_alloc(1,2);
-//gsl_matrix_set_zero(Cref);
-//
-//gsl_matrix_set(Cref,0,0,1);
-//
-//
-//InitSteadyState(mpcptr,Cref);
-//
-//
-//printf("Steady State Matrix\n");
-//print2scr(mpcptr->SteadyState);
+/*****SIMULATION**********/
+double Ts=0.5;
+double tsim=20;
+gsl_matrix *Bd=gsl_matrix_alloc(Ns,1);
+gsl_matrix_set_zero(Bd);
+InitSimModel(modeldptr,modeldptr->X0,Ts,tsim,Bd);
+
+gsl_matrix *umat=gsl_matrix_alloc(Nu,1);
+double u[1]={1};
+printf("Steady\n");
+assign_Mat(umat,u);
 
 
+/****MPC Parameters to pass for stepping*/
+double refr[]={0};
+double inputdist[]={0};
+double Bdx[]={0,0,0,0,0};
+double outputdist[]={0,0,0,0};
+
+printf("Steady\n");
+print2scr(mpcptr->SteadyState);
+
+double x[5]={0};
+int k,l;
+for(i=0;i<modeldptr->Ndatapoints;i++)
+{
+    assign_Mat(umat,u);
+    ModelStep(modeldptr,i,umat,0.0);
+    StepSteadyState(mpcptr,refr,inputdist,outputdist,Bd,0);
+   for(i=0;i<4;i++)
+       x[i]=gsl_matrix_get(modeldptr->currxdata,i,0);
+       x[4]=u[0];
+    //StepMPC(mpcptr,x,u);
+
+}
 
 
-
-
-//
-//  structMPC mpc,*mpcptr;
-//  mpcptr=&mpc;
-//  mpcptr->A=gsl_matrix_alloc(2,2);
-//  mpcptr->B=gsl_matrix_alloc(2,1);
-//  mpcptr->C=gsl_matrix_alloc(1,2);
-//  mpcptr->D=gsl_matrix_alloc(1,1);
-//
-//  assign_Mat(mpcptr->A,a);
-//  assign_Mat(mpcptr->B,b);
-//  assign_Mat(mpcptr->C,c);
-//  assign_Mat(mpcptr->D,d);
-//
-//  mpcptr->predHor=Np;
-//  mpcptr->contHor=Nc;
-//
-//  Ns=mpcptr->A->size1;
-//  Nu=mpcptr->B->size2;
-//  Ny=mpcptr->C->size1;
-//
-//
-//
-// mpcptr->Q=gsl_matrix_alloc(Ny,Ny);
-// gsl_matrix_set_identity(mpcptr->Q);
-// mpcptr->P=gsl_matrix_alloc(Ny,Ny);
-// gsl_matrix_memcpy(mpcptr->P,mpcptr->Q);
-// mpcptr->R=gsl_matrix_alloc(Nu,Nu);
-// gsl_matrix_set_identity(mpcptr->R);
-//
-//mpcptr->predtype=OUTPUT;
-//MPCpredmat(mpcptr);
-//
-//  printf("Su:\n");
-//  print2scr(mpcptr->Su);
-//
-//double lbu[]={-1};
-//double ubu[]={1};
-//
-//double lbx[]={-2,-3};
-//double ubx[]={2,3};
-//
-//InitMPCconstraints(mpcptr,lbu,ubu,lbx,ubx);
-//
-//for(i=0;i++;i<Np*Ns)
-//{
-//    printf("\n");
-//    for(j=0;j++;j<Nc*Nu)
-//        printf("%5.0f ",mpcptr->suval[i*Nc*Nu+j]);
-//}
-//
-////printf("Nu:%d Ns:%d Ny:%d Np:%d Nc:%d\n",Nu,Ns,Ny,Np,Nc);
-//for(i=0;i<Nc*Nu;i++)
-//    printf("%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
-//
-//
-//    for(i=0;i<Np*Ny;i++)
-//    printf("%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
-
+printModeldata(modeldptr,1,"model.txt");
+gnu_plot("model.txt");
+printf("Nc:%d nV: %d",mpcptr->nCon,mpcptr->nVar);
 return 0;
 }
 

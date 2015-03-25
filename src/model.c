@@ -128,7 +128,7 @@ gsl_matrix *X0;
 
 FILE *jac;
 
-jac=fopen("ServoMech_Model_.jac0","r");
+jac=fopen(s,"r");
 fscanf(jac,"%d%d%d",&Ns,&Nu,&Ny);
 printf("\nValues read from file are %d %d %d",Ns,Nu,Ny);
 
@@ -323,6 +323,53 @@ assign_Mat(m->B,b);
 assign_Mat(m->C,c);
 assign_Mat(m->D,d);
 assign_Mat(m->X0,x0);
+
+}
+void DiscrModel(Model *src,Model *dest, double Ts)
+{
+    gsl_matrix *expA;
+    gsl_matrix *invA;
+    gsl_matrix *expAMI;
+    gsl_matrix *temp1;
+
+    int Nu,Ns,Ny;
+
+    Nu=src->B->size2;
+    Ny=src->C->size1;
+    Ns=src->A->size1;
+
+    dest->A=gsl_matrix_alloc(Ns,Ns);
+    dest->B=gsl_matrix_alloc(Ns,Nu);
+    dest->C=gsl_matrix_alloc(Ny,Ns);
+    dest->D=gsl_matrix_alloc(Ny,Nu);
+    dest->X0=gsl_matrix_alloc(Ns,1);
+
+    expA=gsl_matrix_alloc(Ns,Ns);
+    invA=gsl_matrix_alloc(Ns,Ns);
+    expAMI=gsl_matrix_alloc(Ns,Ns);
+    temp1=gsl_matrix_alloc(Ns,Nu);
+    gsl_matrix_set_identity(expAMI);
+
+    gsl_matrix_memcpy(expA,src->A);
+
+    printf("I am here 1\n");
+
+    gsl_blas_dgemm(CblasNoTrans,CblasNoTrans,0.0,expA,expA,Ts,expA);
+    printf("I am here 2\n");
+    print2scr(expA);
+
+    gsl_linalg_exponential_ss(expA,expA,1);
+    printf("I am here 3\n");
+    invA=MatInv2(src->A);
+
+    expAMI=MatSub2(expAMI,expA);
+
+    temp1=MatMul2(src->A,MatMul2(expAMI,src->B));
+
+    gsl_matrix_memcpy(dest->B,temp1);
+    gsl_matrix_memcpy(dest->A,expA);
+    gsl_matrix_memcpy(dest->C,src->C);
+    gsl_matrix_memcpy(dest->D,src->D);
 
 }
 
