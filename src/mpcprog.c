@@ -65,12 +65,14 @@ gsl_matrix_free(Aint);
 
 
 
-void gnu_plot(char *c)
+void gnu_plot(char *c,char *e)
 {
 char d[100]="plot '";
 
 strcat(d,c);
-strcat(d,"' using 1:3 with lines\n");
+strcat(d,"' using ");
+strcat(d,e);
+strcat(d," with lines\n");
 FILE *pipe = popen("gnuplot -persist","w");
 //fprintf(pipe, "set terminal wxt\n");
 //fprintf(pipe, "set output 'test.png'\n");
@@ -232,7 +234,7 @@ for(i=0;i<Nc*Nu;i++)
     printf("%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
 
 
-printf("nC:%d nV:%d",mpcptr->nVar,mpcptr->nCon);
+printf("nC:%d nV:%d",mpcptr->nVar,mpcptr->nCons);
 print2scr(mpcptr->C);
 print2scr(mpcptr->H);
 print2scr(mpcptr->F);
@@ -241,12 +243,13 @@ print2scr(mpcptr->G);
 /*****SIMULATION**********/
 double Ts=0.5;
 double tsim=20;
-gsl_matrix *Bd=gsl_matrix_alloc(Ns,1);
+gsl_matrix *Bd=gsl_matrix_alloc(modeldptr->A->size1,1);
 gsl_matrix_set_zero(Bd);
+print2scr(Bd);
 InitSimModel(modeldptr,modeldptr->X0,Ts,tsim,Bd);
 
 gsl_matrix *umat=gsl_matrix_alloc(Nu,1);
-double u[1]={1};
+double u[1]={0};
 printf("Steady\n");
 assign_Mat(umat,u);
 
@@ -256,28 +259,37 @@ double refr[]={0};
 double inputdist[]={0};
 double Bdx[]={0,0,0,0,0};
 double outputdist[]={0,0,0,0};
+double xref[]={0.0,0.0,0.0,40,0.0};
 
 printf("Steady\n");
 print2scr(mpcptr->SteadyState);
-
+double deltaU[]={0};
 double x[5]={0};
 int k,l;
-for(i=0;i<modeldptr->Ndatapoints;i++)
+printf("Before Loop:Curr X data");
+print2scr(modeldptr->currxdata);
+for(i=1;i<modeldptr->Ndatapoints;i++)
 {
+    StepSteadyState(mpcptr,refr,inputdist,outputdist,Bdx,0);
+    for(k=0;k<4;k++)
+       x[k]=gsl_matrix_get(modeldptr->currxdata,k,0)-xref[k];
+      x[4]=u[0]-xref[4];
+    StepMPC(mpcptr,x,deltaU);
+    u[0]=u[0]+deltaU[0];
+
     assign_Mat(umat,u);
     ModelStep(modeldptr,i,umat,0.0);
-    StepSteadyState(mpcptr,refr,inputdist,outputdist,Bd,0);
-   for(i=0;i<4;i++)
-       x[i]=gsl_matrix_get(modeldptr->currxdata,i,0);
-       x[4]=u[0];
-    //StepMPC(mpcptr,x,u);
+
+
+
 
 }
-
-
-printModeldata(modeldptr,1,"model.txt");
-gnu_plot("model.txt");
-printf("Nc:%d nV: %d",mpcptr->nCon,mpcptr->nVar);
+print2scr(modeldptr->statedata);
+print2scr(modeldptr->inputdata);
+printModeldata(modeldptr,2,"model.txt");
+gnu_plot("model.txt","1:2");
+gnu_plot("model.txt","1:3");
+gnu_plot("model.txt","1:4");
 return 0;
 }
 

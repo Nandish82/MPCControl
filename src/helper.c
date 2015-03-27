@@ -69,16 +69,19 @@ gsl_matrix *MatInv2(gsl_matrix *m) //returns m^{-1}
 int nRows=m->size1;
 int nCols=m->size2;
 int s; //signum for LU decomposition
+gsl_matrix *mcopy=gsl_matrix_alloc(nRows,nCols);
+gsl_matrix_memcpy(mcopy,m);
 gsl_matrix *minv=gsl_matrix_alloc(nRows,nCols);
 
 // Define all the used matrices
 	gsl_permutation *perm = gsl_permutation_alloc(nRows);
 
 	// Make LU decomposition of matrix A
-	gsl_linalg_LU_decomp(m,perm,&s);
+	gsl_linalg_LU_decomp(mcopy,perm,&s);
 
 	// Invert the matrix A
-	gsl_linalg_LU_invert (m,perm,minv);
+	gsl_linalg_LU_invert (mcopy,perm,minv);
+	free(mcopy);
 	return minv;
 }
 

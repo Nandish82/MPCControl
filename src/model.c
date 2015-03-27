@@ -12,7 +12,15 @@ m->B=gsl_matrix_alloc(Ns,Nu);
 m->C=gsl_matrix_alloc(Ny,Ns);
 m->D=gsl_matrix_alloc(Ny,Nu);
 m->X0=gsl_matrix_alloc(Ns,1);
+
+printf("Adress of m->Bd before allocation:%p\n",m->Bd);
 m->Bd=gsl_matrix_alloc(Ns,1);
+printf("Adress of m->Bd after allocation:%p\n",m->Bd);
+gsl_matrix_set_zero(m->Bd);
+printf("In Init Model\n");
+printf("m->Bd");
+print2scr(m->Bd);
+
 
 gsl_matrix_memcpy(m->A,A);
 gsl_matrix_memcpy(m->B,B);
@@ -30,6 +38,7 @@ void InitSimModel(Model *m,gsl_matrix *X0,double Ts,double tsim,gsl_matrix *Bd)
     m->outputdata=gsl_matrix_alloc(m->C->size1,Ndatapoints);
     m->currxdata=gsl_matrix_alloc(m->A->size1,1);
     m->currydata=gsl_matrix_alloc(m->C->size1,1);
+    m->inputdata=gsl_matrix_alloc(m->B->size2,Ndatapoints);
     m->X0=X0;
     m->currxdata=X0;
     y0=MatMul2(m->C,X0);
@@ -43,7 +52,13 @@ void InitSimModel(Model *m,gsl_matrix *X0,double Ts,double tsim,gsl_matrix *Bd)
 
     m->Ts=Ts;
     m->Ndatapoints=Ndatapoints;
-    m->Bd=Bd;
+    printf("In InitSimModel:\n");
+    printf("Bd");
+    print2scr(Bd);
+    printf("m->Bd");
+    print2scr(m->Bd);
+    gsl_matrix_memcpy(m->Bd,Bd);
+    //m->Bd=Bd;
 
 }
 
@@ -65,6 +80,8 @@ void ModelStep(Model *m,int step_time,gsl_matrix *u,double dist)
         gsl_matrix_set(m->statedata,j,step_time,gsl_matrix_get(m->currxdata,j,0));
     for(j=0;j<m->C->size1;j++)
         gsl_matrix_set(m->outputdata,j,step_time,gsl_matrix_get(m->currydata,j,0));
+    for(j=0;j<m->B->size2;j++)
+        gsl_matrix_set(m->inputdata,j,step_time,gsl_matrix_get(u,j,0));
 
 }
 
@@ -105,7 +122,7 @@ void printModeldata(Model *m,int s,char *filename)
 gsl_matrix_free(plotdata);
 }
 
-void ReadJac(Model *m,char *s)
+void ReadJac(Model *m,char *s) ///once you read a jac file it initialises model
 {
 int Ns,Nu,Ny; //number states, number inputs, number outputs
 int i,j;
@@ -264,6 +281,7 @@ md->B=gsl_matrix_alloc(Ns,Nu);
 md->C=gsl_matrix_alloc(Ny,Ns);
 md->D=gsl_matrix_alloc(Ny,Nu);
 md->X0=gsl_matrix_alloc(Ns,1);
+md->Bd=gsl_matrix_alloc(Ns,1);
 
 gsl_matrix_memcpy(md->C,mc->C);
 gsl_matrix_memcpy(md->D,mc->D);

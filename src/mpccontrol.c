@@ -928,8 +928,8 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
 
     ///Assigning nCon and nVar
 
-    mpcptr->nCon=Nc*Nu;
-    mpcptr->nVar=Nsy*Np;
+    mpcptr->nCons=Nsy*Np; ///number of constraints
+    mpcptr->nVar=Nc*Nu; ///number of variables to optimize
 
     return 0;
 
@@ -984,7 +984,7 @@ int StepMPCconstraints(structMPC *mpcptr,double *xdata)
                 temp=temp+xdata[j]*gsl_matrix_get(mpcptr->Sx,i,j);///Sx.x
             }
         mpcptr->lbAxss[i]=mpcptr->lbA[i]-temp-mpcptr->xss[i%Nsy];///lbx=lbx-Sx.x-xss
-        mpcptr->ubAxss[i]=mpcptr->ubA[i]-temp-mpcptr->xss[i%Nsy];
+       mpcptr->ubAxss[i]=mpcptr->ubA[i]-temp-mpcptr->xss[i%Nsy];
 
     }
     for(i=0;i<Nc*Nu;i++)
@@ -1067,23 +1067,20 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
 
     gsl_matrix *RefBdx=gsl_matrix_alloc(Nss,1);
     gsl_matrix_set_zero(RefBdx);
-     printf("line 1050\n");
-     print2scr(RefBdx);
-     printf("Nss:%d Ns:%d Nu:%d",Nss,Ns,Nu);
     for(i=0;i<Ns+Nu;i++)
     {
         if(i<Ns)
     {
-        printf("\n Line 1058");
+
             for(k=0;k<Nid;k++)
             {
                 temp=temp+Bd[k+Nid*i]*inputdist[k];
-                 printf("\nline 1060\n");
+
             }
 
 
          gsl_matrix_set(RefBdx,i,0,-temp);
-         printf("\nline 1067\n");
+
          temp=0;
     }
         if(i>=Ns)
@@ -1104,8 +1101,11 @@ return 0;
 }
 int StepMPC(structMPC *mpcptr,double *x,double *u)
 {
-    int Ns,Nu,Ny,i,j;
+    int Ns,Nu,Ny,i,j,Nsy,Np,Nc;
     double *fvalx;
+
+Nc=mpcptr->contHor;
+Np=mpcptr->predHor;
     if(mpcptr->type==DELTA)
     {
         Nu=mpcptr->B->size2;
@@ -1115,14 +1115,55 @@ int StepMPC(structMPC *mpcptr,double *x,double *u)
 
     else
     {
-         Nu=mpcptr->B->size2;
+        Nu=mpcptr->B->size2;
         Ns=mpcptr->A->size1;
         Ny=mpcptr->C->size1;
     }
     fvalx=malloc(mpcptr->contHor*Nu*sizeof(double));
     ///FOR Delta formulation
-    StepMPCconstraints(mpcptr,x);
 
+
+
+    ///StepMPCconstraints(mpcptr,x);
+
+    ///******ADJUSTING CONSTRAINTS******//////////////////
+
+     if(mpcptr->predtype==OUTPUT)
+    {
+        Nsy=Ny;
+    }
+    else if(mpcptr->predtype==STATE)
+    {
+        Nsy=Ns;
+
+    }
+    else
+    {
+        printf("\n Prediction type has not been initialised");
+        return 2; ///unsucessful
+    }
+
+    double temp=0.0;
+
+    for(i=0;i<Np*Nsy;i++)
+    {
+           for(j=0;j<Ns;j++)
+            {
+                temp=temp+x[j]*gsl_matrix_get(mpcptr->Sx,i,j);///Sx.x
+            }
+        mpcptr->lbAxss[i]=mpcptr->lbA[i]-temp-mpcptr->xss[i%Nsy];///lbx=lbx-Sx.x-xss
+        mpcptr->ubAxss[i]=mpcptr->ubA[i]-temp-mpcptr->xss[i%Nsy];
+        temp=0.0;
+
+    }
+    for(i=0;i<Nc*Nu;i++)
+    {
+       mpcptr->lbuss[i]=mpcptr->lb[i]-mpcptr->uss[i%Nu];///lb=lb-uss REMEMBER: lb is a Nc x Nu matrix whereas uss is an Nu, so values have to be repeated
+                                                        ///every Nu times. Same for xss
+        mpcptr->ubuss[i]=mpcptr->ub[i]-mpcptr->uss[i%Nu];
+    }
+    ///***********************/////////////////
+fvalx=malloc(mpcptr->contHor*Nu*sizeof(double));
 double *xopt=malloc(mpcptr->contHor*Nu*sizeof(double));
 double *sol=malloc(mpcptr->contHor*Nu*sizeof(double));
 int nWSR;
@@ -1134,8 +1175,9 @@ nWSR=40;
 
 for(i=0;i<mpcptr->contHor*Nu;i++)
     for(j=0;j<Ns;j++)
+    {
         fvalx[i]=fvalx[i]+mpcptr->fval[j+i*Ns]*x[j];
-
+    }
 
 /*myTrajectoryRelatedOptimization (nV,nC,
                                    H, g, A,
@@ -1145,15 +1187,17 @@ for(i=0;i<mpcptr->contHor*Nu;i++)
                                    &nWSR,cputime
                                   );*/
 
-myTrajectoryRelatedOptimization (mpcptr->nVar,mpcptr->nCon,
+myTrajectoryRelatedOptimization (mpcptr->nVar,mpcptr->nCons,
                                    mpcptr->hval, fvalx,mpcptr->suval,
                                    mpcptr->lbuss, mpcptr->ubuss,
                                    mpcptr->lbAxss, mpcptr->ubAxss,
                                    xopt,sol,
                                    &nWSR,cputime
                                   );
-
-printf("Initialised Correctly\n");
 for(i=0;i<Nu;i++)
-    u[i]=sol[i]+x[Ns-i];
+{
+    u[i]=sol[i];
+    printf("sol:%f,x:%f\n",sol[0],xopt[0]);
+}
+
 }

@@ -13,6 +13,7 @@ gsl_matrix *D;
 gsl_matrix *X0; //initial conditions.
 gsl_matrix *statedata;
 gsl_matrix *outputdata;
+gsl_matrix *inputdata;
 gsl_matrix *Bd;
 int initfalg; //if model already initialised return 3
 double Ts; //sample time
