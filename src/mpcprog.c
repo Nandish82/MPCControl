@@ -119,17 +119,19 @@ double PITCH_ANGLE_MIN=-0.349;
 double ALTITUDE_MIN=-1000000;
 double ALTITUDE_MAX=1000000;
 
-double ALTITUDE_RATE_MAX=1000000;
-double ALTITUDE_RATE_MIN=-1000000;
+double ALTITUDE_RATE_MAX=30;
+double ALTITUDE_RATE_MIN=-30;
 
 
 ///constraints
-double lbu[]={EL_SLEW_MIN};
-double ubu[]={EL_SLEW_MAX};
-double lbx[]={-100000,PITCH_ANGLE_MIN,-100000,-10000,EL_ANGLE_MIN}  ;
-double ubx[]={-100000,PITCH_ANGLE_MAX,-100000,-10000,EL_ANGLE_MAX};
-double lby[]={PITCH_ANGLE_MIN,ALTITUDE_MIN,ALTITUDE_RATE_MIN,EL_ANGLE_MIN};
-double uby[]={PITCH_ANGLE_MAX,ALTITUDE_MAX,ALTITUDE_RATE_MAX,EL_ANGLE_MAX};
+double lbdelta[]={EL_SLEW_MIN};
+double ubdelta[]={EL_SLEW_MAX};
+double lbu[]={EL_ANGLE_MIN};
+double ubu[]={EL_ANGLE_MAX};
+double lbx[]={-100000,PITCH_ANGLE_MIN,-100000,-10000}  ;
+double ubx[]={-100000,PITCH_ANGLE_MAX,-100000,-10000};
+double lby[]={PITCH_ANGLE_MIN,ALTITUDE_MIN,ALTITUDE_RATE_MIN};
+double uby[]={PITCH_ANGLE_MAX,ALTITUDE_MAX,ALTITUDE_RATE_MAX};
 
 
 
@@ -141,16 +143,6 @@ Model model,*modelptr,modeld,*modeldptr;
 structMPC mpc,*mpcptr;
 
 
-
-///weight matrices
-gsl_matrix *Qx=gsl_matrix_alloc(4,4);  ///state prediciton
-gsl_matrix_set_identity(Qx);
-gsl_matrix *Qy=gsl_matrix_alloc(4,4);  ///output prediciton
-gsl_matrix_set_identity(Qy);
-gsl_matrix *R=gsl_matrix_alloc(1,1);   ///input weight
-gsl_matrix_set_identity(R);
-gsl_matrix *Rrate=gsl_matrix_alloc(1,1); ///rate input weight.
-gsl_matrix_set_identity(Rrate);
 
 /**
 ***
@@ -184,14 +176,17 @@ print2scr(modelptr->D);
 
 ///AssignMPCweights(mpcptr,Q,R,Rrate); This has to be set.
 double qx[]={1,1,1,1};
-double qy[]={1,1,1,1};
+double qy[]={1,1,1};
 double r[]={1};
 double rrate[]={1};
+printf("I am here at 190");
 //
-createDiagonal(Qx,qx);
+/*createDiagonal(Qx,qx);
 createDiagonal(Qy,qy);
 createDiagonal(R,r);
 createDiagonal(Rrate,rrate);
+printf("Qx");
+print2scr(Qx);
 
 ///this has to be done in a function. I am exceptionally doing it here
 mpcptr->Q=gsl_matrix_alloc(Qy->size1,Qy->size2);
@@ -206,14 +201,15 @@ print2scr(mpcptr->Q);
 
 print2scr(mpcptr->P);
 
-print2scr(mpcptr->R);
+print2scr(mpcptr->R);*/
+
 
 ///********************************************************************
 
 InitMPCType(mpcptr,modeldptr,DELTA,OUTPUT); ///sets model and type of formulation and type of prediction
-/// FUNCTION TO ASSIGN WEIGHTS MISSING
+AssignMPCWeights(mpcptr,qy,r,rrate);
 MPCpredmat(mpcptr,Np,Nc);
-InitMPCconstraints(mpcptr,lbu,ubu,lby,uby);
+InitMPCconstraints(mpcptr,lbu,ubu,lby,uby,lbdelta,ubdelta);
 
 
 ///states=[xxx pitch angle xxx altitude]
@@ -221,8 +217,8 @@ InitMPCconstraints(mpcptr,lbu,ubu,lby,uby);
 ///we want to control the altitude so
 double Cref[]={0,0,0,1};
 InitSteadyState(mpcptr,Cref,1);
-printf("Steady State Matrix\n");
-print2scr(mpcptr->SteadyState);
+//printf("Steady State Matrix\n");
+//print2scr(mpcptr->SteadyState);
 
 
 printf("Constant Constraints Matrices\n");
@@ -234,11 +230,11 @@ for(i=0;i<Nc*Nu;i++)
     printf("%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
 
 
-printf("nC:%d nV:%d",mpcptr->nVar,mpcptr->nCons);
-print2scr(mpcptr->C);
-print2scr(mpcptr->H);
-print2scr(mpcptr->F);
-print2scr(mpcptr->G);
+//printf("nC:%d nV:%d",mpcptr->nVar,mpcptr->nCons);
+//print2scr(mpcptr->C);
+//print2scr(mpcptr->H);
+//print2scr(mpcptr->F);
+//print2scr(mpcptr->G);
 
 /*****SIMULATION**********/
 double Ts=0.5;

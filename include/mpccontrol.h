@@ -54,8 +54,8 @@ gsl_matrix *xdata;
 gsl_matrix *statedata;
 double *xss;
 double *uss;
-MPCType type;
-MPCPredictionType predtype;
+MPCType type; ///fomulation type
+MPCPredictionType predtype; ///predition type
 }structMPC;
 
 typedef struct
@@ -74,9 +74,9 @@ void MPC_Step(structMPC *mpcptr,gsl_matrix *xdata, gsl_matrix *u);
 /**returns the steady state values*/
 double* MPCcalcSS(structMPC *mpcptr, double *refr,double *input_dist, double *output_dist,gsl_matrix *Bd,gsl_matrix *Cref);
 int MPCpredmat(structMPC *mpcptr,int Np,int Nc);
-int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbx, double *ubx);
+int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, double *ubxy,double *lbdelta,double *ubdelta);
 
-int AssignMPCWeights(structMPC *mpcptr,gsl_matrix *Q,gsl_matrix *R,gsl_matrix *Rrate);
+int AssignMPCWeights(structMPC *mpcptr,double *qxy,double *rinput,double *rrate);
 int StepMPCconstraints(structMPC *mpcptr,double *xdata);
 int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *outputdist, double *Bd, int Nid);
 int StepMPC(structMPC *mpcptr,double *x,double *u);

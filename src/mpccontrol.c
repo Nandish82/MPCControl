@@ -859,7 +859,7 @@ return 0;
  *
  */
 
-int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, double *ubxy)
+int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, double *ubxy,double *lbdelta,double *ubdelta)
 {
 
     ///size of lbu = Nu x 1
@@ -867,6 +867,12 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
 
     int i,j,k,l; ///counters
     int Ns,Nu,Ny,Np,Nc,Nsy;
+
+    double *lb1;
+    double *ub1;
+
+    double *lbA1;
+    double *ubA1;
 
     Ns=mpcptr->A->size1;
     Nu=mpcptr->B->size2;
@@ -876,7 +882,9 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
     Np=mpcptr->predHor;
 
 
-
+/***Creates constraints according to type and predtype***/
+/// for Delta lbA=[constraints states/output constraints input]
+///           lb=[constraints rate(lbdelta)]
 
 
 
@@ -894,6 +902,55 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
         printf("\n Prediction type has not been initialised");
         return 2; ///unsucessful
     }
+
+        lb1=malloc(Nu*sizeof(double));
+        ub1=malloc(Nu*sizeof(double));
+        lbA1=malloc(Nsy*sizeof(double));
+        ubA1=malloc(Nsy*sizeof(double));
+
+
+
+    if(mpcptr->type==DELTA)
+    {
+
+
+        for(i=0;i<Nu;i++)
+        {
+            lb1[i]=lbdelta[i];
+            ub1[i]=ubdelta[i];
+        }
+
+        for(i=0;i<Nsy;i++)
+        {
+            if(i<(Nsy-Nu))
+            {
+                lbA1[i]=lbxy[i];
+                ubA1[i]=ubxy[i];
+            }
+            if(i>=(Nsy-Nu))
+            {
+                lbA1[i]=lbu[i-Nsy+Nu];
+                ubA1[i]=ubu[i-Nsy+Nu];
+            }
+        }
+    }
+    else
+    {
+         for(i=0;i<Nu;i++)
+        {
+            lb1[i]=lbu[i];
+            ub1[i]=ubu[i];
+        }
+
+        for(i=0;i<Nsy;i++)
+        {
+            lbA1[i]=lbxy[i];
+            ubA1[i]=ubxy[i];
+        }
+
+
+
+    }
      mpcptr->lb=malloc(Nc*Nu*sizeof(double));
      mpcptr->ub=malloc(Nc*Nu*sizeof(double));
 
@@ -903,7 +960,7 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
      mpcptr->lbA=malloc(Np*Nsy*sizeof(double));
      mpcptr->ubA=malloc(Np*Nsy*sizeof(double));
 
-       mpcptr->lbAxss=malloc(Np*Nsy*sizeof(double));
+     mpcptr->lbAxss=malloc(Np*Nsy*sizeof(double));
      mpcptr->ubAxss=malloc(Np*Nsy*sizeof(double));
 
      mpcptr->suval=malloc(Np*Nsy*Nc*Nu*sizeof(double));
@@ -911,14 +968,14 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
     for(i=0;i<Nc;i++)
         for(j=0;j<Nu;j++)
         {
-            mpcptr->lb[i*Nu+j]=lbu[j];
-            mpcptr->ub[i*Nu+j]=ubu[j];
+            mpcptr->lb[i*Nu+j]=lb1[j];
+            mpcptr->ub[i*Nu+j]=ub1[j];
         }
     for(i=0;i<Np;i++)
         for(j=0;j<Nsy;j++)
     {
-        mpcptr->lbA[i*Nsy+j]=lbxy[j];
-        mpcptr->ubA[i*Nsy+j]=ubxy[j];
+        mpcptr->lbA[i*Nsy+j]=lbA1[j];
+        mpcptr->ubA[i*Nsy+j]=ubA1[j];
     }
 
     ///suval is required for the qpoases problem. So here we convert the Su matrix to suval double.
@@ -931,6 +988,10 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
     mpcptr->nCons=Nsy*Np; ///number of constraints
     mpcptr->nVar=Nc*Nu; ///number of variables to optimize
 
+    free(lb1);
+    free(ub1);
+    free(lbA1);
+    free(ubA1);
     return 0;
 
 }
@@ -1001,48 +1062,64 @@ int StepMPCconstraints(structMPC *mpcptr,double *xdata)
 // TODO (ncalcha#1#): Find a way to assign weight depending on whether we are using state predicitions or output predicitions. Furthermore, it also depends whetehter we are using Delta representation or normal representation. ...
 //
 
-int AssignMPCWeights(structMPC *mpcptr,gsl_matrix *Q,gsl_matrix *R,gsl_matrix *Rrate)
+
+int AssignMPCWeights(structMPC *mpcptr,double *qxy,double *rinput,double *rrate)
 {
-    int Ns,Ny,Nu,i,j;
+    int Ns,Ny,Nu,i,j,Nsy;
+
 
     Ns=mpcptr->A->size1;
     Nu=mpcptr->B->size2;
     Ny=mpcptr->C->size1;
 
-    if(mpcptr->type==DELTA)
-    {
-        if(mpcptr->predtype==STATE)
-        {
-            mpcptr->Q=gsl_matrix_alloc(Ns,Ns);
-            gsl_matrix_set_zero(Q);
-            for(i=0;i<Ns;i++)
-            {
-                if(i<Ns-Nu)
-                    gsl_matrix_set(mpcptr->Q,i,i,gsl_matrix_get(Q,i,i));
-                else
-                    gsl_matrix_set(mpcptr->Q,i,i,gsl_matrix_get(R,i-Ns,i-Ns));
+    if (mpcptr->predtype==OUTPUT)
+        Nsy=Ny;
+    else
+        Nsy=Ns;
 
-            }
+
+
+
+    mpcptr->Q=gsl_matrix_alloc(Nsy,Nsy);
+    gsl_matrix_set_zero(mpcptr->Q);
+    mpcptr->R=gsl_matrix_alloc(Nu,Nu);
+    gsl_matrix_set_zero(mpcptr->R);
+    mpcptr->P=gsl_matrix_alloc(Nsy,Nsy);
+    gsl_matrix_set_zero(mpcptr->P);
+
+    for(i=0;i<Nsy;i++)
+    {
+        if(mpcptr->type==DELTA)
+        {
+            if(i<Nu)
+                gsl_matrix_set(mpcptr->R,i,i,rrate[i]);
+
+
+            if(i<(Nsy-Nu))
+                gsl_matrix_set(mpcptr->Q,i,i,qxy[i]);
+            else
+                gsl_matrix_set(mpcptr->Q,i,i,rinput[i-Nsy]);
+        }
+        else if(mpcptr->type==NORMAL)
+        {
+            if(i<Nu)
+            gsl_matrix_set(mpcptr->R,i,i,rinput[i]);
+
+            gsl_matrix_set(mpcptr->Q,i,i,qxy[i]);
 
         }
 
-
-        if(mpcptr->predtype==OUTPUT)
-        {
-            mpcptr->Q=gsl_matrix_alloc(Ns,Ns);
-            gsl_matrix_set_zero(Q);
-            for(i=0;i<Ns;i++)
-            {
-                if(i<Ns-Nu)
-                    gsl_matrix_set(mpcptr->Q,i,i,gsl_matrix_get(Q,i,i));
-                else
-                    gsl_matrix_set(mpcptr->Q,i,i,gsl_matrix_get(R,i-Ns,i-Ns));
-
-            }
     }
 
+    gsl_matrix_memcpy(mpcptr->P,mpcptr->Q);
+
+
+
+
+
+
 }
-}
+
 
 int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *outputdist, double *Bd, int Nid)
 {
