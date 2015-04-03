@@ -124,7 +124,7 @@ int InitSteadyState(structMPC *mpcptr,double *Cref,int Ntr)
     {
         Nu=mpcptr->B->size2;
         Ns=mpcptr->A->size1-Nu;
-        Ny=mpcptr->C->size1;
+        Ny=mpcptr->C->size1-Nu;
         printf("Delta Ns:%d Nu:%d Ny:%d\n",Ns,Nu,Ny);
     }
     else
@@ -159,6 +159,7 @@ int InitSteadyState(structMPC *mpcptr,double *Cref,int Ntr)
 
     mpcptr->uss=malloc((Nu)*sizeof(double));
     mpcptr->xss=malloc((Ns)*sizeof(double));
+    mpcptr->yss=malloc((Ny)*sizeof(double));
 
   return 1;
 }
@@ -965,17 +966,24 @@ int InitMPCconstraints(structMPC *mpcptr,double *lbu,double *ubu, double *lbxy, 
 
      mpcptr->suval=malloc(Np*Nsy*Nc*Nu*sizeof(double));
 
+    ///populating the matrices due to control and prediction horizon..for each of them the constraints has to be repeated
     for(i=0;i<Nc;i++)
         for(j=0;j<Nu;j++)
         {
             mpcptr->lb[i*Nu+j]=lb1[j];
             mpcptr->ub[i*Nu+j]=ub1[j];
+
+            mpcptr->lbuss[i*Nu+j]=lb1[j];
+            mpcptr->ubuss[i*Nu+j]=ub1[j];
         }
     for(i=0;i<Np;i++)
         for(j=0;j<Nsy;j++)
     {
         mpcptr->lbA[i*Nsy+j]=lbA1[j];
         mpcptr->ubA[i*Nsy+j]=ubA1[j];
+
+        mpcptr->lbAxss[i*Nsy+j]=lbA1[j];
+        mpcptr->ubAxss[i*Nsy+j]=ubA1[j];
     }
 
     ///suval is required for the qpoases problem. So here we convert the Su matrix to suval double.
@@ -1013,6 +1021,7 @@ int StepMPCconstraints(structMPC *mpcptr,double *xdata)
 
 
     int Ns,Nu,Ny,Np,Nc,Nsy,i,j,k;
+    double *ssxy,*sstemp;
 
     Ns=mpcptr->A->size1;
     Nu=mpcptr->B->size2;
@@ -1024,10 +1033,12 @@ int StepMPCconstraints(structMPC *mpcptr,double *xdata)
      if(mpcptr->predtype==OUTPUT)
     {
         Nsy=Ny;
+        sstemp=&mpcptr->yss[0];
     }
     else if(mpcptr->predtype==STATE)
     {
         Nsy=Ns;
+        sstemp=&mpcptr->xss[0];
 
     }
     else
@@ -1036,24 +1047,71 @@ int StepMPCconstraints(structMPC *mpcptr,double *xdata)
         return 2; ///unsucessful
     }
 
+    if(mpcptr->type==DELTA)
+    {
+        ssxy=malloc(Nsy*sizeof(double));
+        for(i=0;i<Nsy;i++)
+        {
+             if(i<Nsy-Nu)
+             {
+                 ssxy[i]=sstemp[i];
+                 printf("ssxy[%d]:%f\n",i,ssxy[i]);
+             }
+            else
+            {
+                ssxy[i]=mpcptr->uss[i-(Nsy-Nu)];
+                 printf("ssxy[%d]:%f\n",i-Nsy+Nu,ssxy[i]);
+            }
+
+
+        }
+
+    }
+    else
+    {
+         ssxy=malloc(Nsy*sizeof(double));
+          for(i=0;i<Nsy;i++)
+                ssxy[i]=sstemp[i];
+    }
+
     double temp=0.0;
 
-    for(i=0;i<Np*Nsy;i++)
+    for(i=0;i<Np;i++)
     {
            for(j=0;j<Ns;j++)
             {
-                temp=temp+xdata[j]*gsl_matrix_get(mpcptr->Sx,i,j);///Sx.x
+                temp=temp+xdata[j]*gsl_matrix_get(mpcptr->Sx,i,j);///Sx.
             }
-        mpcptr->lbAxss[i]=mpcptr->lbA[i]-temp-mpcptr->xss[i%Nsy];///lbx=lbx-Sx.x-xss
-       mpcptr->ubAxss[i]=mpcptr->ubA[i]-temp-mpcptr->xss[i%Nsy];
+
+            for(j=0;j<Nsy;j++)
+            {
+                 mpcptr->lbAxss[j+i*Nsy]=mpcptr->lbA[j+i*Nsy]-temp-ssxy[j];///lbx=lbx-Sx.x-xss
+                 mpcptr->ubAxss[j+i*Nsy]=mpcptr->ubA[j+i*Nsy]-temp-ssxy[j];
+            }
+            printf("temp:%f\n",temp);
+            temp=0;
+
 
     }
-    for(i=0;i<Nc*Nu;i++)
+    if(mpcptr->type==NORMAL)
+    {
+        for(i=0;i<Nc*Nu;i++)
     {
        mpcptr->lbuss[i]=mpcptr->lb[i]-mpcptr->uss[i%Nu];///lb=lb-uss REMEMBER: lb is a Nc x Nu matrix whereas uss is an Nu, so values have to be repeated
                                                         ///every Nu times. Same for xss
         mpcptr->ubuss[i]=mpcptr->ub[i]-mpcptr->uss[i%Nu];
     }
+    }
+    else
+    {
+        for(i=0;i<Nc*Nu;i++)
+    {
+       mpcptr->lbuss[i]=mpcptr->lb[i];///lb=lb-uss REMEMBER: lb is a Nc x Nu matrix whereas uss is an Nu, so values have to be repeated
+                                                        ///every Nu times. Same for xss
+        mpcptr->ubuss[i]=mpcptr->ub[i];
+    }
+    }
+
 
     return 0;
 
@@ -1141,6 +1199,12 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
     ///we cannot have more tracked outputs than inputs
     ///else our steady state matrix is not square
     /// and cannot be inverted.
+    if(mpcptr->type==DELTA)
+    {
+        Ny=mpcptr->C->size1-mpcptr->B->size2;
+    }
+    else
+        Ny=mpcptr->C->size1;
 
     gsl_matrix *RefBdx=gsl_matrix_alloc(Nss,1);
     gsl_matrix_set_zero(RefBdx);
@@ -1167,10 +1231,30 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
     gsl_matrix *ssmat=gsl_matrix_alloc(Nss,1);
     ssmat=MatMul2(MatInv2(mpcptr->SteadyState),RefBdx);
 
+
+
+
     for(i=0;i<Ns;i++)
         mpcptr->xss[i]=gsl_matrix_get(ssmat,i,0);
     for(i=0;i<Nu;i++)
         mpcptr->uss[i]=gsl_matrix_get(ssmat,i+Ns,0);
+
+    ///Populating mpcptr->yss mat yss=C*xss///
+     temp=0;
+    for(i=0;i<Ny;i++)
+    {
+        for(j=0;j<Ns;j++)
+        {
+             temp=temp+gsl_matrix_get(mpcptr->C,i,j)*mpcptr->xss[j];
+
+        }
+        mpcptr->yss[i]=temp;
+        temp=0;
+
+
+    }
+
+
 
     free(RefBdx);
     free(ssmat);
@@ -1180,6 +1264,7 @@ int StepMPC(structMPC *mpcptr,double *x,double *u)
 {
     int Ns,Nu,Ny,i,j,Nsy,Np,Nc;
     double *fvalx;
+    double *ssxy;
 
 Nc=mpcptr->contHor;
 Np=mpcptr->predHor;
@@ -1196,50 +1281,20 @@ Np=mpcptr->predHor;
         Ns=mpcptr->A->size1;
         Ny=mpcptr->C->size1;
     }
-    fvalx=malloc(mpcptr->contHor*Nu*sizeof(double));
-    ///FOR Delta formulation
-
-
-
-    ///StepMPCconstraints(mpcptr,x);
-
-    ///******ADJUSTING CONSTRAINTS******//////////////////
-
-     if(mpcptr->predtype==OUTPUT)
+    if(mpcptr->predtype==OUTPUT)
     {
         Nsy=Ny;
-    }
-    else if(mpcptr->predtype==STATE)
-    {
-        Nsy=Ns;
-
-    }
-    else
-    {
-        printf("\n Prediction type has not been initialised");
-        return 2; ///unsucessful
+        double *ssxy;
+        ssxy=&mpcptr->yss[0];
     }
 
-    double temp=0.0;
+        else
+        {
+            Nsy=Ns;
+            ssxy=&mpcptr->xss[0];
+        }
 
-    for(i=0;i<Np*Nsy;i++)
-    {
-           for(j=0;j<Ns;j++)
-            {
-                temp=temp+x[j]*gsl_matrix_get(mpcptr->Sx,i,j);///Sx.x
-            }
-        mpcptr->lbAxss[i]=mpcptr->lbA[i]-temp-mpcptr->xss[i%Nsy];///lbx=lbx-Sx.x-xss
-        mpcptr->ubAxss[i]=mpcptr->ubA[i]-temp-mpcptr->xss[i%Nsy];
-        temp=0.0;
 
-    }
-    for(i=0;i<Nc*Nu;i++)
-    {
-       mpcptr->lbuss[i]=mpcptr->lb[i]-mpcptr->uss[i%Nu];///lb=lb-uss REMEMBER: lb is a Nc x Nu matrix whereas uss is an Nu, so values have to be repeated
-                                                        ///every Nu times. Same for xss
-        mpcptr->ubuss[i]=mpcptr->ub[i]-mpcptr->uss[i%Nu];
-    }
-    ///***********************/////////////////
 fvalx=malloc(mpcptr->contHor*Nu*sizeof(double));
 double *xopt=malloc(mpcptr->contHor*Nu*sizeof(double));
 double *sol=malloc(mpcptr->contHor*Nu*sizeof(double));
@@ -1261,9 +1316,71 @@ for(i=0;i<mpcptr->contHor*Nu;i++)
                                    lb, ub,
                                    lbA, ubA,
                                    xopt,sol,
-                                   &nWSR,cputime
-                                  );*/
+                                   &nWSR,cputime*/
 
+//for(i=0;i<Nc*Nu;i++)
+//    printf("%d:%f<=uss<=%f\n",i,mpcptr->lbuss[i],mpcptr->ubuss[i]);
+//
+//
+//for(i=0;i<Np*mpcptr->C->size1;i++)
+//    printf("%d:%f<=Su.xss<=%f\n",i,mpcptr->lbA[i],mpcptr->ubA[i]);
+
+//StepMPCconstraints(mpcptr,x);
+///****************************************TO BE REMOVED LATER************************/
+
+ gsl_matrix *MX=gsl_matrix_alloc(Np*Nsy,1);
+    double *MXval=malloc(Np*Nsy*sizeof(double));
+ gsl_matrix *xmat=gsl_matrix_alloc(Ns,1);
+ assign_Mat(xmat,x);
+
+    print2scr(mpcptr->Sx);
+    print2scr(xmat);
+    MX=MatMul2(mpcptr->Sx,xmat);
+
+
+
+
+    for(i=0;i<Np*Nsy;i++)
+    {
+        MXval[i]=gsl_matrix_get(MX,i,0);
+
+
+    }
+
+
+    /**calculation of ubAMX and lbAMX*/
+
+    for(i=0;i<Np*Nsy;i++)
+    {
+        mpcptr->ubAxss[i]=mpcptr->ubA[i]-MXval[i];
+        mpcptr->lbAxss[i]=mpcptr->lbA[i]-MXval[i];
+
+    }
+
+
+
+/***adjustment of constraints so that lb<u+uss<ub*/
+double *lbuss=malloc(Nc*Nu*sizeof(double));
+double *ubuss=malloc(Nc*Nu*sizeof(double));
+for(i=0;i<Nc;i++)
+    for(j=0;j<Nu;j++)
+{
+   lbuss[j+i*Nu]=mpcptr->lb[j+i*Nu];//-mpcptr->uss[j];
+   ubuss[j+i*Nu]=mpcptr->ub[j+i*Nu];//-mpcptr->uss[j];
+   //mpcptr->lb[j+i*Nu]=mpcptr->lb[j+i*Nu]-mpcptr->uss[j];
+   //mpcptr->ub[j+i*Nu]=mpcptr->ub[j+i*Nu]-mpcptr->uss[j];
+}
+
+/***adjustment of constraints so that lb<x+xss<ub*/
+for(i=0;i<Np;i++)
+        for(j=0;j<Nsy;j++)
+    {
+       mpcptr->ubAxss[j+i*Ns]=mpcptr->ubAxss[j+i*Ns];//-ssxy[j];
+       mpcptr->lbAxss[j+i*Ns]=mpcptr->lbAxss[j+i*Ns];//-ssxy[j];
+    }
+free(MX);
+free(xmat);
+///************************************************************************************
 myTrajectoryRelatedOptimization (mpcptr->nVar,mpcptr->nCons,
                                    mpcptr->hval, fvalx,mpcptr->suval,
                                    mpcptr->lbuss, mpcptr->ubuss,
@@ -1276,5 +1393,7 @@ for(i=0;i<Nu;i++)
     u[i]=sol[i];
     printf("sol:%f,x:%f\n",sol[0],xopt[0]);
 }
+free(fvalx);
 
+//    free(xmat);
 }

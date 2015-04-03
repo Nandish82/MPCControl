@@ -1,10 +1,10 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#include <gsl/gsl_matrix.h>
-#include <gsl/gsl_blas.h>
-#include <gsl/gsl_vector.h>
-#include <gsl/gsl_linalg.h>
+//#include <gsl/gsl_matrix.h>
+//#include <gsl/gsl_blas.h>
+//#include <gsl/gsl_vector.h>
+//#include <gsl/gsl_linalg.h>
 #include "helper.h"
 #include "model.h"
 #include "kalman.h"
@@ -60,7 +60,12 @@ gsl_matrix_free(Aint);
 
 // Linear Kalman Filter
 
-
+void wait()
+{
+    fflush(stdin);
+   char c;
+    scanf("%d",&c);
+}
 
 
 
@@ -105,6 +110,7 @@ double x0[]={0,0,0,0};
 
 char *model_file="airplane.jac0";
 
+FILE *fmpc;
 
 ///Specific constraints
 double EL_ANGLE_MIN=-0.262;
@@ -116,11 +122,11 @@ double EL_SLEW_MIN=-0.524;
 double PITCH_ANGLE_MAX=0.349;
 double PITCH_ANGLE_MIN=-0.349;
 
-double ALTITUDE_MIN=-1000000;
-double ALTITUDE_MAX=1000000;
+double ALTITUDE_MIN=-100000;
+double ALTITUDE_MAX= 100000 ;
 
-double ALTITUDE_RATE_MAX=30;
-double ALTITUDE_RATE_MIN=-30;
+double ALTITUDE_RATE_MAX= 100000;
+double ALTITUDE_RATE_MIN=-100000;
 
 
 ///constraints
@@ -217,17 +223,18 @@ InitMPCconstraints(mpcptr,lbu,ubu,lby,uby,lbdelta,ubdelta);
 ///we want to control the altitude so
 double Cref[]={0,0,0,1};
 InitSteadyState(mpcptr,Cref,1);
-//printf("Steady State Matrix\n");
-//print2scr(mpcptr->SteadyState);
+printf("Steady State Matrix\n");
+print2scr(mpcptr->SteadyState);
+print2scr(mpcptr->C);
 
 
 printf("Constant Constraints Matrices\n");
 for(i=0;i<Nc*Nu;i++)
-    printf("%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
+    printf("%d:%f<=u<=%f\n",i,mpcptr->lb[i],mpcptr->ub[i]);
 
 
-    for(i=0;i<Np*Ny;i++)
-    printf("%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
+    for(i=0;i<Np*mpcptr->C->size1;i++)
+    printf("%d%f<=Su.x<=%f\n",i,mpcptr->lbA[i],mpcptr->ubA[i]);
 
 
 //printf("nC:%d nV:%d",mpcptr->nVar,mpcptr->nCons);
@@ -251,8 +258,8 @@ assign_Mat(umat,u);
 
 
 /****MPC Parameters to pass for stepping*/
-double refr[]={0};
-double inputdist[]={0};
+double refr[]={40};
+double inputdist[]={0.0};
 double Bdx[]={0,0,0,0,0};
 double outputdist[]={0,0,0,0};
 double xref[]={0.0,0.0,0.0,40,0.0};
@@ -264,20 +271,30 @@ double x[5]={0};
 int k,l;
 printf("Before Loop:Curr X data");
 print2scr(modeldptr->currxdata);
+
+
+
+//for(i=0;i<Nc*Nu;i++)
+//    printf("%d:%f<=u<=%f\n",i,mpcptr->lb[i],mpcptr->ub[i]);
+//
+//
+//    for(i=0;i<Np*mpcptr->C->size1;i++)
+//    printf("%d%f<=Su.x<=%f\n",i,mpcptr->lbA[i],mpcptr->ubA[i]);
+
+gsl_matrix *deltaUdata=gsl_matrix_alloc(1,modelptr->Ndatapoints);
 for(i=1;i<modeldptr->Ndatapoints;i++)
 {
     StepSteadyState(mpcptr,refr,inputdist,outputdist,Bdx,0);
     for(k=0;k<4;k++)
-       x[k]=gsl_matrix_get(modeldptr->currxdata,k,0)-xref[k];
-      x[4]=u[0]-xref[4];
+       x[k]=gsl_matrix_get(modeldptr->currxdata,k,0)-mpcptr->xss[k];
+      x[4]=u[0]-mpcptr->uss[0];
     StepMPC(mpcptr,x,deltaU);
+    gsl_matrix_set(deltaUdata,0,i,deltaU[0]);
+    //wait();
     u[0]=u[0]+deltaU[0];
 
     assign_Mat(umat,u);
     ModelStep(modeldptr,i,umat,0.0);
-
-
-
 
 }
 print2scr(modeldptr->statedata);
@@ -286,6 +303,23 @@ printModeldata(modeldptr,2,"model.txt");
 gnu_plot("model.txt","1:2");
 gnu_plot("model.txt","1:3");
 gnu_plot("model.txt","1:4");
+print2scr(mpcptr->Q);
+for(i=0;i<120;i++)
+    printf("suval[%d]:%f\n",i,mpcptr->suval[i]);
+
+for(i=0;i<Nc*Nu;i++)
+    printf("%d:%f<=uss<=%f\n",i,mpcptr->lbuss[i],mpcptr->ubuss[i]);
+
+
+    for(i=0;i<Np*mpcptr->C->size1;i++)
+    {
+        printf("%d%f<=Su.xss<=%f\n",i,mpcptr->lbAxss[i],mpcptr->ubAxss[i]);
+        printf("%d%f<=Su.xss<=%f\n",i,mpcptr->lbA[i],mpcptr->ubA[i]);
+    }
+
+print2scr(mpcptr->Su);
+
+
 return 0;
 }
 

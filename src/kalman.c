@@ -1,6 +1,6 @@
 #include "kalman.h"
 
-void Kalman_Init(Kalman_struc *Kalman,gsl_matrix *Qcov, gsl_matrix *Rcov,Model *m)
+void Kalman_Init(Kalman_struc *Kalman,Model *m,gsl_matrix *Qcov, gsl_matrix *Rcov)
 {
 int Ns,Ny,Nu;
 long Npoints; //number os states, output, inputsKalman=m;
@@ -8,17 +8,32 @@ Ns=m->A->size1;
 Nu=m->B->size2;
 Ny=m->C->size1;
 
-Kalman->A=m->A;
-Kalman->B=m->B;
-Kalman->C=m->C;
-Kalman->D=m->D;
+Kalman->A=gsl_matrix_alloc(Ns,Ns);
+Kalman->B=gsl_matrix_alloc(Ns,Nu);
+Kalman->C=gsl_matrix_alloc(Ny,Ns);
+Kalman->D=gsl_matrix_alloc(Ny,Nu);
+
+gsl_matrix_memcpy(Kalman->A,m->A);
+gsl_matrix_memcpy(Kalman->B,m->B);
+gsl_matrix_memcpy(Kalman->C,m->C);
+gsl_matrix_memcpy(Kalman->D,m->D);
+
+Kalman->Ts=m->Ts;
+
 Kalman->Q=gsl_matrix_alloc(Ns,Ns);
+gsl_matrix_set_identity(Kalman->Q);
 Kalman->R=gsl_matrix_alloc(Ny,Ny);
+gsl_matrix_set_identity(Kalman->R);
 Kalman->P=gsl_matrix_alloc(Ns,Ns);
+gsl_matrix_set_all(Kalman->P,0);
 Kalman->K=gsl_matrix_alloc(Ns,Ny);
+gsl_matrix_set_all(Kalman->K,0);
 Kalman->xdata=gsl_matrix_alloc(Ns,1);
-Kalman->Q=Qcov;
-Kalman->R=Rcov;
+
+gsl_matrix_memcpy(Kalman->xdata,m->X0);
+
+gsl_matrix_memcpy(Kalman->Q,Qcov);
+gsl_matrix_memcpy(Kalman->R,Rcov);
 }
 
 void Kalman_Step(Kalman_struc *Kalman,gsl_matrix *ymeas,gsl_matrix *u)
@@ -40,8 +55,8 @@ gsl_matrix_memcpy(xprev,Kalman->xdata);
 //P_[k]=A*P[k-1]*A^T+Q[k-1] //tmpQ
 MatAdd(MatMul2(Kalman->A,Kalman->xdata),MatMul2(Kalman->B,u),xprev);
 MatAdd(MatMul2(MatMul2(Kalman->A,Kalman->P),MatTrans(Kalman->A)),Kalman->Q,Kalman->P);
-printf("\n Kalman->K");
-print2scr(Kalman->K);
+
+
 /* printf("Kalman Model A");
 print2scr(Kalman->A);
 printf("u");
@@ -92,7 +107,7 @@ Ns=m->A->size1;
 Ns=Ns+Nsd;
 Nu=m->B->size2;
 Ny=m->C->size1;
-printf("Nsd:%d,Nyd:%d,Nud:%d,Ns:%d\n",Nsd,Nyd,Nud,Ns);
+
 //
 Ad=gsl_matrix_alloc(Nsd,Nsd);
 Cd=gsl_matrix_alloc(Nyd,Nyd);
@@ -100,7 +115,7 @@ Cd=gsl_matrix_alloc(Nyd,Nyd);
 ////Augmented Model becomes
 ////Au=[A 0;0 Ad] Bu=[B;0] Cu=[C Cd]
 //
-printf("Ns:%d\n");
+
 //
 //
 Kalman->A=gsl_matrix_alloc(Ns,Ns);
@@ -326,7 +341,7 @@ for(i=0;i<Kalman->statedata->size1;i++)
 
 }
 
-void Kalman_Step2(Kalman_struc *Kalman,gsl_matrix *ymeas,gsl_matrix *u,int step_value)
+void Kalman_Step2(Kalman_struc *Kalman,gsl_matrix *ymeas,gsl_matrix *u)
 {
 int i,j;
 //initialisation
@@ -340,11 +355,13 @@ gsl_matrix *idenNs=gsl_matrix_alloc(Kalman->A->size1,Kalman->A->size1);
 //create NsxNs identity matrix
 gsl_matrix_set_identity(idenNs);
 gsl_matrix_memcpy(xprev,Kalman->xdata);
+
 /*Time update Equations*/
 //x_[k]=A*x[k-1]+B*u[k]  x_ denotes a priori estimate //tmpA,tmpB
 //P_[k]=A*P[k-1]*A^T+Q[k-1] //tmpQ
 MatAdd(MatMul2(Kalman->A,Kalman->xdata),MatMul2(Kalman->B,u),xprev);
 MatAdd(MatMul2(MatMul2(Kalman->A,Kalman->P),MatTrans(Kalman->A)),Kalman->Q,Kalman->P);
+
 /* printf("Kalman Model A");
 print2scr(Kalman->A);
 printf("u");
@@ -356,6 +373,7 @@ print2scr(Kalman->B); */
 tmpD=MatMul2(MatMul2(Kalman->C,Kalman->P),MatTrans(Kalman->C));
 MatAdd(tmpD,Kalman->R,tmpD);
 Kalman->K=MatMul2(MatMul2(Kalman->P,MatTrans(Kalman->C)),MatInv2(tmpD));
+
 //Kalman->K=MatMul2(MatMul2(Kalman->P,MatTrans(Kalman->C)),MatInv2(tmpD));
 /*Measurement Update Equations*/
 //x[k]=x_[k]+K[k]*(y[k]-C*x_[k])
@@ -366,8 +384,8 @@ tmpC=MatSub2(MatMul2(Kalman->K,Kalman->C),idenNs);
 Kalman->P=MatMul2(tmpC,MatMul2(Kalman->P,MatTrans(tmpC)));
 Kalman->P=MatAdd2(Kalman->P,MatMul2(Kalman->K,MatMul2(Kalman->R,MatTrans(Kalman->K))));
 
-for(i=0;i<Kalman->statedata->size1;i++)
-gsl_matrix_set(Kalman->statedata,i,step_value,gsl_matrix_get(Kalman->xdata,i,0));
+//for(i=0;i<Kalman->statedata->size1;i++)
+//gsl_matrix_set(Kalman->statedata,i,step_value,gsl_matrix_get(Kalman->xdata,i,0));
 
 gsl_matrix_free(xprev);
 gsl_matrix_free(tmpA);
@@ -568,9 +586,7 @@ Kalman->Q=gsl_matrix_alloc(Ns,Ns);
 Kalman->R=gsl_matrix_alloc(Ny,Ny);
 gsl_matrix_set_identity(Kalman->Q);
 gsl_matrix_set_identity(Kalman->R);
-printf("kalman->Q");
-print2scr(Kalman->Q);
-printsizeMat(Kalman->C,"f");
+
 //Kalman->Q=gsl_matrix_alloc(Ns,Ns);
 //Kalman->R=gsl_matrix_alloc(Ny,Ny);
 Kalman->P=gsl_matrix_alloc(Ns,Ns);
@@ -639,8 +655,7 @@ gsl_matrix_set_all(Kalman->A,0);
 gsl_matrix_set_all(Kalman->C,0);
 k=0;
 //print2scr(m->A->size1);
-print2scr(tmpBCd);
-print2scr(Kalman->C);
+
 for(i=0;i<Ns;i++)
 for(j=0;j<Ns;j++)
 {

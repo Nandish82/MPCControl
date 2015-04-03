@@ -1,18 +1,18 @@
 #include "model.h"
-#include <qpOases_public.h>
+#include "qpOases_public.h"
 #ifndef MPCCONTROL_H
 #define MPCCONTROL_H
 
 typedef enum
 {
-    DELTA=0,
-    NORMAL
+    DELTA=2,
+    NORMAL=1
 }MPCType; /** Determines whether to construct Delta Matrices or Normal Matrices*/
 
 typedef enum
 {
-    STATE=0,
-    OUTPUT,
+    STATE=2,
+    OUTPUT=1
 }MPCPredictionType;/** Determines whether Prediction types are on the states or the output*/
 
 typedef struct
@@ -54,6 +54,7 @@ gsl_matrix *xdata;
 gsl_matrix *statedata;
 double *xss;
 double *uss;
+double *yss;
 MPCType type; ///fomulation type
 MPCPredictionType predtype; ///predition type
 }structMPC;
