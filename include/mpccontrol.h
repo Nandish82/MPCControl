@@ -30,6 +30,12 @@ gsl_matrix *F;
 gsl_matrix *G;
 gsl_matrix *SteadyState;
 gsl_matrix *constraints;
+gsl_matrix *CM;
+gsl_matrix *M;
+gsl_matrix *Su;
+gsl_matrix *Sx;
+gsl_matrix *xdata;
+gsl_matrix *statedata;
 double *hval; /** size= cHorizon*Nu*cHorizon*Nu*/
 double *gval;
 double *fval;
@@ -41,17 +47,11 @@ double *lbA,*lbAxss;
 double *ubA,*ubAxss;
 double *lbAMX;
 double *ubAMX;
-gsl_matrix *CM;
-gsl_matrix *M;
 double *CMval;
-gsl_matrix *Su;
-gsl_matrix *Sx;
 double *suval;
 int predHor; ///prediction horizon
 int contHor; ///control horizon
 double Ts;
-gsl_matrix *xdata;
-gsl_matrix *statedata;
 double *xss;
 double *uss;
 double *yss;
@@ -81,4 +81,6 @@ int AssignMPCWeights(structMPC *mpcptr,double *qxy,double *rinput,double *rrate)
 int StepMPCconstraints(structMPC *mpcptr,double *xdata);
 int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *outputdist, double *Bd, int Nid);
 int StepMPC(structMPC *mpcptr,double *x,double *u);
+void print2FileMPC(structMPC *mpcptr,char *filename);
+
 #endif

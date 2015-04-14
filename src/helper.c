@@ -182,16 +182,17 @@ int rows=m->size1;
             gsl_matrix_set (m, i, j, val[i][j]);
 }
 
-void print2FileMat(gsl_matrix *m,FILE *filename)
+void print2FileMat(gsl_matrix *m,FILE *filepointer)
 {
     int rows=m->size1;
     int cols=m->size2;
     int i,j;
+    fprintf(filepointer,"Matrix Size is: %d x %d\n",m->size1,m->size2);
     for (i=0;i<rows;i++)
     {
         for(j=0;j<cols;j++)
-            fprintf(filename,"%f ",gsl_matrix_get(m,i,j));
-        fprintf(filename,"\n");
+            fprintf(filepointer,"%f ",gsl_matrix_get(m,i,j));
+        fprintf(filepointer,"\n");
     }
 }
 

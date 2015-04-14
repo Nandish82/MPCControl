@@ -15,6 +15,7 @@ output=mpcprog
 
 $(FINAL_DIR)/lib/libdelta.a:$(LIB)
 	cp $(LIB) $(FINAL_DIR)/lib
+	cp $(INCL)/*.h $(FINAL_DIR)/include
 
 
 $(BIN)/$(output): src/$(output).o $(LIB)

@@ -1120,6 +1120,9 @@ int StepMPCconstraints(structMPC *mpcptr,double *xdata)
 // TODO (ncalcha#1#): Find a way to assign weight depending on whether we are using state predicitions or output predicitions. Furthermore, it also depends whetehter we are using Delta representation or normal representation. ...
 //
 
+/****
+This function assigns weights
+**/
 
 int AssignMPCWeights(structMPC *mpcptr,double *qxy,double *rinput,double *rrate)
 {
@@ -1137,7 +1140,7 @@ int AssignMPCWeights(structMPC *mpcptr,double *qxy,double *rinput,double *rrate)
 
 
 
-
+    /**allocate matrices*/
     mpcptr->Q=gsl_matrix_alloc(Nsy,Nsy);
     gsl_matrix_set_zero(mpcptr->Q);
     mpcptr->R=gsl_matrix_alloc(Nu,Nu);
@@ -1332,9 +1335,6 @@ for(i=0;i<mpcptr->contHor*Nu;i++)
     double *MXval=malloc(Np*Nsy*sizeof(double));
  gsl_matrix *xmat=gsl_matrix_alloc(Ns,1);
  assign_Mat(xmat,x);
-
-    print2scr(mpcptr->Sx);
-    print2scr(xmat);
     MX=MatMul2(mpcptr->Sx,xmat);
 
 
@@ -1396,4 +1396,94 @@ for(i=0;i<Nu;i++)
 free(fvalx);
 
 //    free(xmat);
+}
+
+void print2FileMPC(structMPC *mpcptr,char *filename)
+{
+    FILE *fp;
+    fp=fopen(filename,"w");
+
+    int Nsy,Nu;
+    int i,j;
+    int typeflag;
+    int formflag;
+    int predflag;
+    char stringform[50]="Type is: ";
+
+    Nu=mpcptr->B->size2;
+
+    if(mpcptr->predtype==OUTPUT)
+    {
+        predflag=1;
+        strcat(stringform,"OUTPUT/");
+        Nsy=mpcptr->C->size1;
+    }
+
+    else
+    {
+         predflag=0;
+         strcat(stringform,"STATE/");
+         Nsy=mpcptr->A->size1;
+    }
+
+    if(mpcptr->type==DELTA)
+    {
+         formflag=1;
+         strcat(stringform,"DELTA");
+         Nsy=Nsy+Nu;
+    }
+    else
+    {
+        formflag=0;
+        strcat(stringform,"NORMAL");
+    }
+
+    /**Prints delta/normal and state/output formulation**/
+    fprintf(fp,"%s\n",stringform);
+
+
+
+
+
+    /***Prints A,B,C,D Matrices*/
+    fprintf(fp,"Matrix A:\n");
+    print2FileMat(mpcptr->A,fp);
+    fprintf(fp,"Matrix B:\n");
+    print2FileMat(mpcptr->B,fp);
+    fprintf(fp,"Matrix C:\n");
+    print2FileMat(mpcptr->C,fp);
+    fprintf(fp,"Matrix D:\n");
+    print2FileMat(mpcptr->D,fp);
+
+    /**Prints weights**/
+     fprintf(fp,"Matrix Q:\n");
+    print2FileMat(mpcptr->Q,fp);
+    fprintf(fp,"Matrix P:\n");
+    print2FileMat(mpcptr->P,fp);
+    fprintf(fp,"Matrix R:\n");
+    print2FileMat(mpcptr->R,fp);
+
+    /**Control and Prediciton Horizon*/
+    fprintf(fp,"Prediction Horizon is: %d \n Control Horizon is: %d \n",mpcptr->predHor,mpcptr->contHor);
+
+    /**Prediction Matrices**/
+    fprintf(fp,"Matrix H:\n");
+    print2FileMat(mpcptr->H,fp);
+    fprintf(fp,"Matrix F:\n");
+    print2FileMat(mpcptr->F,fp);
+    fprintf(fp,"Matrix G:\n");
+    print2FileMat(mpcptr->G,fp);
+
+
+    /***Constraint Matrices*/
+    fprintf(fp,"Constraint Matrices\n");
+
+    for(i=0;i<(mpcptr->contHor*(Nu));i++)
+    fprintf(fp,"%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
+
+
+    for(i=0;i<(mpcptr->predHor*Nsy);i++)
+    fprintf(fp,"%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
+    fclose(fp);
+
 }

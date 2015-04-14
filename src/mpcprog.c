@@ -216,7 +216,7 @@ InitMPCType(mpcptr,modeldptr,DELTA,OUTPUT); ///sets model and type of formulatio
 AssignMPCWeights(mpcptr,qy,r,rrate);
 MPCpredmat(mpcptr,Np,Nc);
 InitMPCconstraints(mpcptr,lbu,ubu,lby,uby,lbdelta,ubdelta);
-
+print2FileMPC(mpcptr,"test1.txt");
 
 ///states=[xxx pitch angle xxx altitude]
 ///outputs=[pitch angle altitude altitude rate]
@@ -258,7 +258,7 @@ assign_Mat(umat,u);
 
 
 /****MPC Parameters to pass for stepping*/
-double refr[]={40};
+double refr[]={400};
 double inputdist[]={0.0};
 double Bdx[]={0,0,0,0,0};
 double outputdist[]={0,0,0,0};
@@ -320,6 +320,7 @@ for(i=0;i<Nc*Nu;i++)
 print2scr(mpcptr->Su);
 
 
+
 return 0;
 }
 
@@ -331,5 +332,8 @@ return 0;
 //Kalman Filter needs model+disturbance model +Q+P
 
 
+*/
+/**
+Prints the different matrices after initialisatioin
 */
 
