@@ -87,7 +87,7 @@ void ModelStep(Model *m,int step_time,gsl_matrix *u,double dist)
 
 void printModeldata(Model *m,int s,char *filename)
 {
-    //s==1 prints states //s==0 prints output
+    ///s==1 prints states //s==0 prints output s==2 prints output
     gsl_matrix *plotdata;
     if (s==0)
     {
@@ -95,10 +95,15 @@ void printModeldata(Model *m,int s,char *filename)
         plotdata=m->statedata;
 
     }
-    else
+    else if(s==1)
     {
         plotdata=gsl_matrix_alloc(m->outputdata->size1,m->outputdata->size2);
         plotdata=m->outputdata;
+    }
+    else
+    {
+        plotdata=gsl_matrix_alloc(m->inputdata->size1,m->outputdata->size2);
+        plotdata=m->inputdata;
     }
    FILE *fp;
     int rows;
@@ -346,11 +351,9 @@ assign_Mat(m->X0,x0);
 void DiscrModel(Model *src,Model *dest, double Ts)
 {
     gsl_matrix *expA;
-    gsl_matrix *invA;
-    gsl_matrix *expAMI;
-    gsl_matrix *temp1;
 
-    int Nu,Ns,Ny;
+
+    int Nu,Ns,Ny,i,j;
 
     Nu=src->B->size2;
     Ny=src->C->size1;
@@ -361,33 +364,52 @@ void DiscrModel(Model *src,Model *dest, double Ts)
     dest->C=gsl_matrix_alloc(Ny,Ns);
     dest->D=gsl_matrix_alloc(Ny,Nu);
     dest->X0=gsl_matrix_alloc(Ns,1);
+    dest->Bd=gsl_matrix_alloc(Ns,1);
 
-    expA=gsl_matrix_alloc(Ns,Ns);
-    invA=gsl_matrix_alloc(Ns,Ns);
-    expAMI=gsl_matrix_alloc(Ns,Ns);
-    temp1=gsl_matrix_alloc(Ns,Nu);
-    gsl_matrix_set_identity(expAMI);
 
-    gsl_matrix_memcpy(expA,src->A);
+    expA=gsl_matrix_alloc(Ns+1,Ns+Nu);
+    gsl_matrix_set_zero(expA);
 
-    printf("I am here 1\n");
+    for(i=0;i<Ns;i++)
+    {
+        for(j=0;j<Ns+Nu;j++)
+        {
+             if(j<Ns)
+            gsl_matrix_set(expA,i,j,gsl_matrix_get(src->A,i,j)*Ts);
+            else
+             gsl_matrix_set(expA,i,j,gsl_matrix_get(src->B,i,j-Ns)*Ts);
 
-    gsl_blas_dgemm(CblasNoTrans,CblasNoTrans,0.0,expA,expA,Ts,expA);
-    printf("I am here 2\n");
+        }
+
+
+    }
+
+    printf("Before Discretization:\n");
     print2scr(expA);
-
     gsl_linalg_exponential_ss(expA,expA,1);
-    printf("I am here 3\n");
-    invA=MatInv2(src->A);
+    printf("After Discretization:\n");
+    print2scr(expA);
+    for(i=0;i<Ns;i++)
+    {
+        for(j=0;j<Ns+Nu;j++)
+        {
+             if(j<Ns)
+            gsl_matrix_set(dest->A,i,j,gsl_matrix_get(expA,i,j));
+            else
+             gsl_matrix_set(dest->B,i,j-Ns,gsl_matrix_get(expA,i,j));
 
-    expAMI=MatSub2(expAMI,expA);
+        }
 
-    temp1=MatMul2(src->A,MatMul2(expAMI,src->B));
 
-    gsl_matrix_memcpy(dest->B,temp1);
-    gsl_matrix_memcpy(dest->A,expA);
+    }
+
     gsl_matrix_memcpy(dest->C,src->C);
     gsl_matrix_memcpy(dest->D,src->D);
+    gsl_matrix_memcpy(dest->X0,src->X0);
+    gsl_matrix_memcpy(dest->Bd,src->Bd);
+
+
+    gsl_matrix_free(expA);
 
 }
 

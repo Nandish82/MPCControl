@@ -34,6 +34,7 @@ gsl_matrix_memcpy(Kalman->xdata,m->X0);
 
 gsl_matrix_memcpy(Kalman->Q,Qcov);
 gsl_matrix_memcpy(Kalman->R,Rcov);
+//gsl_matrix_set_identity(Kalman->P);
 }
 
 void Kalman_Step(Kalman_struc *Kalman,gsl_matrix *ymeas,gsl_matrix *u)

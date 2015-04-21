@@ -82,5 +82,6 @@ int StepMPCconstraints(structMPC *mpcptr,double *xdata);
 int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *outputdist, double *Bd, int Nid);
 int StepMPC(structMPC *mpcptr,double *x,double *u);
 void print2FileMPC(structMPC *mpcptr,char *filename);
+void printSteadyState(structMPC *mpcptr);
 
 #endif

@@ -125,8 +125,8 @@ double PITCH_ANGLE_MIN=-0.349;
 double ALTITUDE_MIN=-100000;
 double ALTITUDE_MAX= 100000 ;
 
-double ALTITUDE_RATE_MAX= 100000;
-double ALTITUDE_RATE_MIN=-100000;
+double ALTITUDE_RATE_MAX= 30;
+double ALTITUDE_RATE_MIN=-30;
 
 
 ///constraints
@@ -161,15 +161,17 @@ structMPC mpc,*mpcptr;
 
 /**************ASSIGNMENT OF VARIABLES*************/
 Np=10; ///predition horizon
-Nc=3; ///control horizon
+Nc=10; ///control horizon
 
 mpcptr=&mpc;
 modelptr=&model;
 modeldptr=&modeld;
 ReadJac(modelptr,model_file);
 //LoadDoubles(modelptr,a,b,c,d,x0,Ns,Nu,Ny);
-discretize_model(modelptr,modeldptr,0.5);
-//DiscrModel(modelptr,modeldptr,0.5);
+//discretize_model(modelptr,modeldptr,0.5);
+
+DiscrModel(modelptr,modeldptr,0.5);
+
 printf("Model\n");
 printf("A matrix\n");
 print2scr(modelptr->A);
@@ -186,7 +188,7 @@ double qy[]={1,1,1};
 double r[]={1};
 double rrate[]={1};
 printf("I am here at 190");
-//
+//`
 /*createDiagonal(Qx,qx);
 createDiagonal(Qy,qy);
 createDiagonal(R,r);
@@ -216,16 +218,15 @@ InitMPCType(mpcptr,modeldptr,DELTA,OUTPUT); ///sets model and type of formulatio
 AssignMPCWeights(mpcptr,qy,r,rrate);
 MPCpredmat(mpcptr,Np,Nc);
 InitMPCconstraints(mpcptr,lbu,ubu,lby,uby,lbdelta,ubdelta);
-print2FileMPC(mpcptr,"test1.txt");
+
 
 ///states=[xxx pitch angle xxx altitude]
 ///outputs=[pitch angle altitude altitude rate]
 ///we want to control the altitude so
 double Cref[]={0,0,0,1};
 InitSteadyState(mpcptr,Cref,1);
-printf("Steady State Matrix\n");
-print2scr(mpcptr->SteadyState);
-print2scr(mpcptr->C);
+
+
 
 
 printf("Constant Constraints Matrices\n");
@@ -245,7 +246,7 @@ for(i=0;i<Nc*Nu;i++)
 
 /*****SIMULATION**********/
 double Ts=0.5;
-double tsim=20;
+double tsim=10;
 gsl_matrix *Bd=gsl_matrix_alloc(modeldptr->A->size1,1);
 gsl_matrix_set_zero(Bd);
 print2scr(Bd);
@@ -258,7 +259,7 @@ assign_Mat(umat,u);
 
 
 /****MPC Parameters to pass for stepping*/
-double refr[]={400};
+double refr[]={40};
 double inputdist[]={0.0};
 double Bdx[]={0,0,0,0,0};
 double outputdist[]={0,0,0,0};
@@ -272,22 +273,31 @@ int k,l;
 printf("Before Loop:Curr X data");
 print2scr(modeldptr->currxdata);
 
+printf("Before Steady State Function called \n");
+printSteadyState(mpcptr);
 
-
-//for(i=0;i<Nc*Nu;i++)
-//    printf("%d:%f<=u<=%f\n",i,mpcptr->lb[i],mpcptr->ub[i]);
-//
-//
-//    for(i=0;i<Np*mpcptr->C->size1;i++)
-//    printf("%d%f<=Su.x<=%f\n",i,mpcptr->lbA[i],mpcptr->ubA[i]);
-
+StepSteadyState(mpcptr,refr,inputdist,outputdist,Bdx,0);
+print2FileMPC(mpcptr,"predconthorizon.txt"); ///PRINTING TO FILE IS HERE.
+printf("After Steady State Function called \n");
+printSteadyState(mpcptr);
+printf("Model X0---Start\n");
+print2scr(modeldptr->X0);
+printf("Model X0---End\n");
 gsl_matrix *deltaUdata=gsl_matrix_alloc(1,modelptr->Ndatapoints);
-for(i=1;i<modeldptr->Ndatapoints;i++)
+for(i=1;i<modeldptr->Ndatapoints/1;i++)
 {
     StepSteadyState(mpcptr,refr,inputdist,outputdist,Bdx,0);
-    for(k=0;k<4;k++)
-       x[k]=gsl_matrix_get(modeldptr->currxdata,k,0)-mpcptr->xss[k];
-      x[4]=u[0]-mpcptr->uss[0];
+    printSteadyState(mpcptr);
+    print2scr(mpcptr->SteadyState);
+    for(k=0;k<mpcptr->A->size1;k++)
+    {
+        if(k<mpcptr->A->size1-mpcptr->B->size2)
+        x[k]=gsl_matrix_get(modeldptr->currxdata,k,0)-mpcptr->xss[k];
+        else
+        x[k]=u[0]-mpcptr->uss[0];
+        printf("in Main loop x[%d]:%f\n",k,x[k]);
+    }
+
     StepMPC(mpcptr,x,deltaU);
     gsl_matrix_set(deltaUdata,0,i,deltaU[0]);
     //wait();
@@ -295,29 +305,21 @@ for(i=1;i<modeldptr->Ndatapoints;i++)
 
     assign_Mat(umat,u);
     ModelStep(modeldptr,i,umat,0.0);
+    print2FileMPC(mpcptr,"insimu.txt");
 
 }
-print2scr(modeldptr->statedata);
-print2scr(modeldptr->inputdata);
-printModeldata(modeldptr,2,"model.txt");
-gnu_plot("model.txt","1:2");
-gnu_plot("model.txt","1:3");
-gnu_plot("model.txt","1:4");
-print2scr(mpcptr->Q);
-for(i=0;i<120;i++)
-    printf("suval[%d]:%f\n",i,mpcptr->suval[i]);
 
-for(i=0;i<Nc*Nu;i++)
-    printf("%d:%f<=uss<=%f\n",i,mpcptr->lbuss[i],mpcptr->ubuss[i]);
+printModeldata(modeldptr,1,"output.txt");
+printModeldata(modeldptr,2,"input.txt");
+gnu_plot("output.txt","1:2");
+gnu_plot("output.txt","1:3");
+gnu_plot("output.txt","1:4");
+gnu_plot("input.txt","1:2");
 
 
-    for(i=0;i<Np*mpcptr->C->size1;i++)
-    {
-        printf("%d%f<=Su.xss<=%f\n",i,mpcptr->lbAxss[i],mpcptr->ubAxss[i]);
-        printf("%d%f<=Su.xss<=%f\n",i,mpcptr->lbA[i],mpcptr->ubA[i]);
-    }
 
-print2scr(mpcptr->Su);
+
+
 
 
 

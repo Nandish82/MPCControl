@@ -47,7 +47,7 @@ void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type,MPCPredictionTyp
         mpcptr->A=gsl_matrix_alloc(Ns+Nu,Ns+Nu);
         mpcptr->B=gsl_matrix_alloc(Ns+Nu,Nu);
         mpcptr->C=gsl_matrix_alloc(Ny+Nu,Ns+Nu);
-        mpcptr->D=gsl_matrix_alloc(Ny,Nu);
+        mpcptr->D=gsl_matrix_alloc(Ny+Nu,Nu);
 
         gsl_matrix_set_all(mpcptr->A,0);
         gsl_matrix_set_all(mpcptr->B,0);
@@ -1196,8 +1196,8 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
    int Ns,Nu,Ny,Nss,i,j,k;
     double temp=0;
 
-    Nss=mpcptr->SteadyState->size1;
-    Ns=Nss-mpcptr->B->size2;
+    Nss=mpcptr->SteadyState->size1; ///size of steady state matrix
+
     Nu=mpcptr->B->size2;
     ///we cannot have more tracked outputs than inputs
     ///else our steady state matrix is not square
@@ -1205,9 +1205,14 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
     if(mpcptr->type==DELTA)
     {
         Ny=mpcptr->C->size1-mpcptr->B->size2;
+        Ns=mpcptr->A->size1-mpcptr->B->size2; ///original size of number of states
     }
     else
-        Ny=mpcptr->C->size1;
+    {
+         Ny=mpcptr->C->size1;
+          Ns=mpcptr->A->size1;
+    }
+
 
     gsl_matrix *RefBdx=gsl_matrix_alloc(Nss,1);
     gsl_matrix_set_zero(RefBdx);
@@ -1218,7 +1223,7 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
 
             for(k=0;k<Nid;k++)
             {
-                temp=temp+Bd[k+Nid*i]*inputdist[k];
+                temp=temp+Bd[k+Nid*i]*inputdist[k]; ///Bd*x
 
             }
 
@@ -1238,9 +1243,15 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
 
 
     for(i=0;i<Ns;i++)
-        mpcptr->xss[i]=gsl_matrix_get(ssmat,i,0);
+    {
+         mpcptr->xss[i]=gsl_matrix_get(ssmat,i,0);
+    }
+
     for(i=0;i<Nu;i++)
+    {
         mpcptr->uss[i]=gsl_matrix_get(ssmat,i+Ns,0);
+    }
+
 
     ///Populating mpcptr->yss mat yss=C*xss///
      temp=0;
@@ -1266,8 +1277,8 @@ return 0;
 int StepMPC(structMPC *mpcptr,double *x,double *u)
 {
     int Ns,Nu,Ny,i,j,Nsy,Np,Nc;
-    double *fvalx;
     double *ssxy;
+    double *fvalx;
 
 Nc=mpcptr->contHor;
 Np=mpcptr->predHor;
@@ -1276,6 +1287,7 @@ Np=mpcptr->predHor;
         Nu=mpcptr->B->size2;
         Ns=mpcptr->A->size1;
         Ny=mpcptr->C->size1;
+
     }
 
     else
@@ -1284,19 +1296,20 @@ Np=mpcptr->predHor;
         Ns=mpcptr->A->size1;
         Ny=mpcptr->C->size1;
     }
+        printf("Nu:%d Ns:%d Ny:%d\n",Nu,Ns,Ny);
     if(mpcptr->predtype==OUTPUT)
     {
         Nsy=Ny;
         double *ssxy;
-        ssxy=&mpcptr->yss[0];
+        //ssxy=&mpcptr->yss[0];
     }
 
         else
         {
             Nsy=Ns;
-            ssxy=&mpcptr->xss[0];
+            //ssxy=&mpcptr->xss[0];
         }
-
+        printf("Nsy: %d\n",Nsy);
 
 fvalx=malloc(mpcptr->contHor*Nu*sizeof(double));
 double *xopt=malloc(mpcptr->contHor*Nu*sizeof(double));
@@ -1308,10 +1321,16 @@ double *cputime;
 cputime=NULL;
 nWSR=40;
 
+    for(i=0;i<mpcptr->A->size1;i++)
+    {
+        printf("in StepMPC loop x[%d]:%f\n",i,x[i]);
+    }
+
 for(i=0;i<mpcptr->contHor*Nu;i++)
     for(j=0;j<Ns;j++)
     {
         fvalx[i]=fvalx[i]+mpcptr->fval[j+i*Ns]*x[j];
+        printf("fvalx[%d]: %f\n",i,fvalx[i]);
     }
 
 /*myTrajectoryRelatedOptimization (nV,nC,
@@ -1336,6 +1355,9 @@ for(i=0;i<mpcptr->contHor*Nu;i++)
  gsl_matrix *xmat=gsl_matrix_alloc(Ns,1);
  assign_Mat(xmat,x);
     MX=MatMul2(mpcptr->Sx,xmat);
+    printsizeMat(MX,"MX");
+    print2scr(xmat);
+    printf("Nsy:%d Ns:%d\n",Nsy,Ns);
 
 
 
@@ -1343,6 +1365,7 @@ for(i=0;i<mpcptr->contHor*Nu;i++)
     for(i=0;i<Np*Nsy;i++)
     {
         MXval[i]=gsl_matrix_get(MX,i,0);
+        printf("MXval[%d]: %f\n",i,MXval[i]);
 
 
     }
@@ -1354,6 +1377,8 @@ for(i=0;i<mpcptr->contHor*Nu;i++)
     {
         mpcptr->ubAxss[i]=mpcptr->ubA[i]-MXval[i];
         mpcptr->lbAxss[i]=mpcptr->lbA[i]-MXval[i];
+        printf("Mpc->lbAxss[%d]: %f\n",i,mpcptr->lbAxss[i]);
+        printf("Mpc-<ubAxxl[%d]: %f\n",i,mpcptr->ubAxss[i]);
 
     }
 
@@ -1378,8 +1403,7 @@ for(i=0;i<Np;i++)
        mpcptr->ubAxss[j+i*Ns]=mpcptr->ubAxss[j+i*Ns];//-ssxy[j];
        mpcptr->lbAxss[j+i*Ns]=mpcptr->lbAxss[j+i*Ns];//-ssxy[j];
     }
-free(MX);
-free(xmat);
+
 ///************************************************************************************
 myTrajectoryRelatedOptimization (mpcptr->nVar,mpcptr->nCons,
                                    mpcptr->hval, fvalx,mpcptr->suval,
@@ -1393,7 +1417,14 @@ for(i=0;i<Nu;i++)
     u[i]=sol[i];
     printf("sol:%f,x:%f\n",sol[0],xopt[0]);
 }
+
+gsl_matrix_free(MX);
+gsl_matrix_free(xmat);
 free(fvalx);
+free(lbuss);
+free(ubuss);
+free(xopt);
+free(sol);
 
 //    free(xmat);
 }
@@ -1403,7 +1434,7 @@ void print2FileMPC(structMPC *mpcptr,char *filename)
     FILE *fp;
     fp=fopen(filename,"w");
 
-    int Nsy,Nu;
+    int Nsy,Nu,Ns;
     int i,j;
     int typeflag;
     int formflag;
@@ -1411,12 +1442,13 @@ void print2FileMPC(structMPC *mpcptr,char *filename)
     char stringform[50]="Type is: ";
 
     Nu=mpcptr->B->size2;
-
+    Ns=mpcptr->A->size1;
     if(mpcptr->predtype==OUTPUT)
     {
         predflag=1;
         strcat(stringform,"OUTPUT/");
         Nsy=mpcptr->C->size1;
+
     }
 
     else
@@ -1424,18 +1456,20 @@ void print2FileMPC(structMPC *mpcptr,char *filename)
          predflag=0;
          strcat(stringform,"STATE/");
          Nsy=mpcptr->A->size1;
+
     }
 
     if(mpcptr->type==DELTA)
     {
          formflag=1;
          strcat(stringform,"DELTA");
-         Nsy=Nsy+Nu;
+
     }
     else
     {
         formflag=0;
         strcat(stringform,"NORMAL");
+
     }
 
     /**Prints delta/normal and state/output formulation**/
@@ -1464,7 +1498,7 @@ void print2FileMPC(structMPC *mpcptr,char *filename)
     print2FileMat(mpcptr->R,fp);
 
     /**Control and Prediciton Horizon*/
-    fprintf(fp,"Prediction Horizon is: %d \n Control Horizon is: %d \n",mpcptr->predHor,mpcptr->contHor);
+    fprintf(fp,"Prediction Horizon is: %d \nControl Horizon is: %d \n",mpcptr->predHor,mpcptr->contHor);
 
     /**Prediction Matrices**/
     fprintf(fp,"Matrix H:\n");
@@ -1476,14 +1510,57 @@ void print2FileMPC(structMPC *mpcptr,char *filename)
 
 
     /***Constraint Matrices*/
-    fprintf(fp,"Constraint Matrices\n");
+    fprintf(fp,"Constraints on the input/delta matrix\n");
 
     for(i=0;i<(mpcptr->contHor*(Nu));i++)
     fprintf(fp,"%f<=u<=%f\n",mpcptr->lb[i],mpcptr->ub[i]);
 
 
     for(i=0;i<(mpcptr->predHor*Nsy);i++)
-    fprintf(fp,"%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
+    {
+        if(i%Nsy==0)
+            fprintf(fp, "Prediction Step %d\n",i/Nsy+1);
+        fprintf(fp,"%f<=Su.x<=%f\n",mpcptr->lbA[i],mpcptr->ubA[i]);
+    }
+
+    fprintf(fp,"Steady State Matrix\n");
+    print2FileMat(mpcptr->SteadyState,fp);
+    fprintf(fp,"Su Matrix:\n");
+    print2FileMat(mpcptr->Su,fp);
+    fprintf(fp,"Sx Matrix:\n");
+    print2FileMat(mpcptr->Sx,fp);
+
+
+for(i=0;i<mpcptr->contHor*Nu;i++)
+{
+
+    for(j=0;j<Ns;j++)
+    {
+        fprintf(fp,"fval[%d]:%f:%f\n",j+i*Ns,mpcptr->fval[j+i*Ns],gsl_matrix_get(mpcptr->F,i,j));
+    }
+    fprintf(fp,"\n");
+}
+
     fclose(fp);
 
+
+
+}
+
+void printSteadyState(structMPC *mpcptr)
+{
+    int Ns,Ny,Nu,i,j;
+     Nu=mpcptr->B->size2;
+     Ns=mpcptr->A->size1;
+     Ny=mpcptr->C->size1;
+    if(mpcptr->type==DELTA)
+    {
+       Ns=Ns-Nu;
+       Ny=Ny-Nu;
+    }
+
+    for(i=0;i<Ns;i++)
+        printf("xss[%d]=%f\n",i,mpcptr->xss[i]);
+    for(i=0;i<Nu;i++)
+        printf("uss[%d]=%f\n",i,mpcptr->uss[i]);
 }

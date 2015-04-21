@@ -191,7 +191,7 @@ void print2FileMat(gsl_matrix *m,FILE *filepointer)
     for (i=0;i<rows;i++)
     {
         for(j=0;j<cols;j++)
-            fprintf(filepointer,"%f ",gsl_matrix_get(m,i,j));
+            fprintf(filepointer,"%.3f ",gsl_matrix_get(m,i,j));
         fprintf(filepointer,"\n");
     }
 }
