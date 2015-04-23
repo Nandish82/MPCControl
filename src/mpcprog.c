@@ -125,8 +125,8 @@ double PITCH_ANGLE_MIN=-0.349;
 double ALTITUDE_MIN=-100000;
 double ALTITUDE_MAX= 100000 ;
 
-double ALTITUDE_RATE_MAX= 30;
-double ALTITUDE_RATE_MIN=-30;
+double ALTITUDE_RATE_MAX= 100000;
+double ALTITUDE_RATE_MIN=-100000;
 
 
 ///constraints
@@ -161,7 +161,7 @@ structMPC mpc,*mpcptr;
 
 /**************ASSIGNMENT OF VARIABLES*************/
 Np=10; ///predition horizon
-Nc=10; ///control horizon
+Nc=3; ///control horizon
 
 mpcptr=&mpc;
 modelptr=&model;
@@ -246,7 +246,7 @@ for(i=0;i<Nc*Nu;i++)
 
 /*****SIMULATION**********/
 double Ts=0.5;
-double tsim=10;
+double tsim=20;
 gsl_matrix *Bd=gsl_matrix_alloc(modeldptr->A->size1,1);
 gsl_matrix_set_zero(Bd);
 print2scr(Bd);
@@ -260,9 +260,9 @@ assign_Mat(umat,u);
 
 /****MPC Parameters to pass for stepping*/
 double refr[]={40};
-double inputdist[]={0.0};
-double Bdx[]={0,0,0,0,0};
-double outputdist[]={0,0,0,0};
+double inputdist[]={7};
+double Bdx[]={0,0,0,02,0};
+double outputdist[]={2};
 double xref[]={0.0,0.0,0.0,40,0.0};
 
 printf("Steady\n");
@@ -276,7 +276,7 @@ print2scr(modeldptr->currxdata);
 printf("Before Steady State Function called \n");
 printSteadyState(mpcptr);
 
-StepSteadyState(mpcptr,refr,inputdist,outputdist,Bdx,0);
+StepSteadyState(mpcptr,refr,inputdist,outputdist,Bdx,1);
 print2FileMPC(mpcptr,"predconthorizon.txt"); ///PRINTING TO FILE IS HERE.
 printf("After Steady State Function called \n");
 printSteadyState(mpcptr);
@@ -284,9 +284,13 @@ printf("Model X0---Start\n");
 print2scr(modeldptr->X0);
 printf("Model X0---End\n");
 gsl_matrix *deltaUdata=gsl_matrix_alloc(1,modelptr->Ndatapoints);
+///for print in StepMPC
+FILE *fp1;
+fp1=fopen("step.txt","w+");
+fclose(fp1);
 for(i=1;i<modeldptr->Ndatapoints/1;i++)
 {
-    StepSteadyState(mpcptr,refr,inputdist,outputdist,Bdx,0);
+    StepSteadyState(mpcptr,refr,inputdist,outputdist,Bdx,1);
     printSteadyState(mpcptr);
     print2scr(mpcptr->SteadyState);
     for(k=0;k<mpcptr->A->size1;k++)
@@ -318,9 +322,19 @@ gnu_plot("input.txt","1:2");
 
 
 
+double outputinput[4]={1,2,3,4};
+int Nid=0,Nod=4;
+double *inputdist1;
+double *outputdist1;
 
+inputdist1=outputinput;
+outputdist1=outputinput+Nid;
 
+for(i=0;i<Nid;i++)
+    printf("input disturbance[%d]=%f\n",i,inputdist1[i]);
 
+for(i=0;i<Nod;i++)
+    printf("Output disturbance[%d]=%f\n",i,outputdist1[i]);
 
 
 return 0;

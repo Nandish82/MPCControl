@@ -1223,7 +1223,7 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
 
             for(k=0;k<Nid;k++)
             {
-                temp=temp+Bd[k+Nid*i]*inputdist[k]; ///Bd*x
+                temp=temp+Bd[i+k*Ns]*inputdist[k]; ///Bd*x
 
             }
 
@@ -1236,6 +1236,8 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
             gsl_matrix_set(RefBdx,i,0,refr[i-Ns]-outputdist[i-Ns]);
     }
 
+    printf("RefBdx\n");
+    print2scr(RefBdx);
     gsl_matrix *ssmat=gsl_matrix_alloc(Nss,1);
     ssmat=MatMul2(MatInv2(mpcptr->SteadyState),RefBdx);
 
@@ -1270,8 +1272,8 @@ int StepSteadyState(structMPC *mpcptr,double *refr,double *inputdist,double *out
 
 
 
-    free(RefBdx);
-    free(ssmat);
+    gsl_matrix_free(RefBdx);
+    gsl_matrix_free(ssmat);
 return 0;
 }
 int StepMPC(structMPC *mpcptr,double *x,double *u)
@@ -1279,6 +1281,11 @@ int StepMPC(structMPC *mpcptr,double *x,double *u)
     int Ns,Nu,Ny,i,j,Nsy,Np,Nc;
     double *ssxy;
     double *fvalx;
+
+
+///Printing of results
+FILE *fp;
+fp=fopen("step.txt","a+");
 
 Nc=mpcptr->contHor;
 Np=mpcptr->predHor;
@@ -1300,7 +1307,6 @@ Np=mpcptr->predHor;
     if(mpcptr->predtype==OUTPUT)
     {
         Nsy=Ny;
-        double *ssxy;
         //ssxy=&mpcptr->yss[0];
     }
 
@@ -1309,7 +1315,11 @@ Np=mpcptr->predHor;
             Nsy=Ns;
             //ssxy=&mpcptr->xss[0];
         }
-        printf("Nsy: %d\n",Nsy);
+
+fprintf(fp,"Values passed:\n");
+for(i=0;i<Ns;i++)
+    fprintf(fp,"x[%d]:%f\n",i,x[i]);
+
 
 fvalx=malloc(mpcptr->contHor*Nu*sizeof(double));
 double *xopt=malloc(mpcptr->contHor*Nu*sizeof(double));
@@ -1321,17 +1331,16 @@ double *cputime;
 cputime=NULL;
 nWSR=40;
 
-    for(i=0;i<mpcptr->A->size1;i++)
-    {
-        printf("in StepMPC loop x[%d]:%f\n",i,x[i]);
-    }
 
 for(i=0;i<mpcptr->contHor*Nu;i++)
-    for(j=0;j<Ns;j++)
+{
+     for(j=0;j<Ns;j++)
     {
         fvalx[i]=fvalx[i]+mpcptr->fval[j+i*Ns]*x[j];
-        printf("fvalx[%d]: %f\n",i,fvalx[i]);
     }
+    fprintf(fp,"fvalx[%d]: %f\n",i,fvalx[i]);
+}
+
 
 /*myTrajectoryRelatedOptimization (nV,nC,
                                    H, g, A,
@@ -1350,25 +1359,24 @@ for(i=0;i<mpcptr->contHor*Nu;i++)
 //StepMPCconstraints(mpcptr,x);
 ///****************************************TO BE REMOVED LATER************************/
 
- gsl_matrix *MX=gsl_matrix_alloc(Np*Nsy,1);
+
     double *MXval=malloc(Np*Nsy*sizeof(double));
- gsl_matrix *xmat=gsl_matrix_alloc(Ns,1);
- assign_Mat(xmat,x);
-    MX=MatMul2(mpcptr->Sx,xmat);
-    printsizeMat(MX,"MX");
-    print2scr(xmat);
+
     printf("Nsy:%d Ns:%d\n",Nsy,Ns);
 
-
-
-
+    ///Calculate Sx*x needed for constraints
     for(i=0;i<Np*Nsy;i++)
     {
-        MXval[i]=gsl_matrix_get(MX,i,0);
-        printf("MXval[%d]: %f\n",i,MXval[i]);
+        MXval[i]=0;
+        for(j=0;j<Ns;j++)
+        {
+            MXval[i]=MXval[i]+gsl_matrix_get(mpcptr->Sx,i,j)*x[j];
 
-
+        }
+        fprintf(fp,"MXval[%d]: %f\n",i,MXval[i]);
     }
+
+
 
 
     /**calculation of ubAMX and lbAMX*/
@@ -1377,8 +1385,8 @@ for(i=0;i<mpcptr->contHor*Nu;i++)
     {
         mpcptr->ubAxss[i]=mpcptr->ubA[i]-MXval[i];
         mpcptr->lbAxss[i]=mpcptr->lbA[i]-MXval[i];
-        printf("Mpc->lbAxss[%d]: %f\n",i,mpcptr->lbAxss[i]);
-        printf("Mpc-<ubAxxl[%d]: %f\n",i,mpcptr->ubAxss[i]);
+        fprintf(fp,"Mpc->lbAxss[%d]: %f\n",i,mpcptr->lbAxss[i]);
+        fprintf(fp,"Mpc-<ubAxxl[%d]: %f\n",i,mpcptr->ubAxss[i]);
 
     }
 
@@ -1415,11 +1423,10 @@ myTrajectoryRelatedOptimization (mpcptr->nVar,mpcptr->nCons,
 for(i=0;i<Nu;i++)
 {
     u[i]=sol[i];
-    printf("sol:%f,x:%f\n",sol[0],xopt[0]);
+    fprintf(fp,"u/delta[%d]:%f\n",i,sol[i]);
 }
-
-gsl_matrix_free(MX);
-gsl_matrix_free(xmat);
+fclose(fp);
+free(MXval);
 free(fvalx);
 free(lbuss);
 free(ubuss);

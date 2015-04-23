@@ -344,7 +344,11 @@ for(i=0;i<Kalman->statedata->size1;i++)
 
 void Kalman_Step2(Kalman_struc *Kalman,gsl_matrix *ymeas,gsl_matrix *u)
 {
-int i,j;
+int i,j,Ns,Nu,Ny;
+
+Ns=Kalman->A->size1;
+Nu=Kalman->B->size2;
+Ny=Kalman->C->size1;
 //initialisation
 gsl_matrix *xprev=gsl_matrix_alloc(Kalman->xdata->size1,Kalman->xdata->size2);
 gsl_matrix *tmpA=gsl_matrix_alloc(Kalman->xdata->size1,1);
@@ -353,6 +357,8 @@ gsl_matrix *tmpC=gsl_matrix_alloc(Kalman->A->size1,Kalman->A->size1);
 gsl_matrix *tmpD=gsl_matrix_alloc(Kalman->C->size1,Kalman->C->size1);
 gsl_matrix *idenNs=gsl_matrix_alloc(Kalman->A->size1,Kalman->A->size1);
 
+double xprevdouble[Ns];
+
 //create NsxNs identity matrix
 gsl_matrix_set_identity(idenNs);
 gsl_matrix_memcpy(xprev,Kalman->xdata);
@@ -360,7 +366,23 @@ gsl_matrix_memcpy(xprev,Kalman->xdata);
 /*Time update Equations*/
 //x_[k]=A*x[k-1]+B*u[k]  x_ denotes a priori estimate //tmpA,tmpB
 //P_[k]=A*P[k-1]*A^T+Q[k-1] //tmpQ
-MatAdd(MatMul2(Kalman->A,Kalman->xdata),MatMul2(Kalman->B,u),xprev);
+
+///element by element multiplication
+for(i=0;i<Ns;i++)
+{
+    xprevdouble[i]=0.0;
+    for(j=0;j<Ns;j++)
+        xprevdouble[i]=xprevdouble[i]+gsl_matrix_get(Kalman->A,i,j)*gsl_matrix_get(Kalman->xdata,j,0);
+}
+
+for(i=0;i<Ns;i++)
+{
+    for(j=0;j<Nu;j++)
+        xprevdouble[i]=xprevdouble[i]+gsl_matrix_get(Kalman->B,i,j)*gsl_matrix_get(u,j,0);
+}
+assign_Mat(xprev,xprevdouble);
+
+//MatAdd(MatMul2(Kalman->A,Kalman->xdata),MatMul2(Kalman->B,u),xprev);
 MatAdd(MatMul2(MatMul2(Kalman->A,Kalman->P),MatTrans(Kalman->A)),Kalman->Q,Kalman->P);
 
 /* printf("Kalman Model A");
