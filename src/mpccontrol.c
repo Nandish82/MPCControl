@@ -164,7 +164,7 @@ int InitSteadyState(structMPC *mpcptr,double *Cref,int Ntr)
   return 1;
 }
 
-void InitMPC(structMPC *mpcptr,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA)
+void InitMPC(structMPC *mpcptr,Model *md,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA)
 {
 
 /**
@@ -188,13 +188,18 @@ Q is the weighting on the states. The last (Ns,Nu) elements are the terminal wei
 R is the weighting on the input.
 */
 
-mpcptr->Ts=mpcptr->Ts;
+mpcptr->Ts=md->Ts;
 mpcptr->predHor=cHorizon;
 int Ns,Nu,Ny,i,j,k,l;
 
-Ns=mpcptr->A->size1;
-Nu=mpcptr->B->size2;
-Ny=mpcptr->C->size1;
+Ns=md->A->size1;
+Nu=md->B->size2;
+Ny=md->C->size1;
+
+mpcptr->A=gsl_matrix_alloc(Ns,Ns);
+mpcptr->B=gsl_matrix_alloc(Ns,Nu);
+mpcptr->C=gsl_matrix_alloc(Ny,Ns);
+mpcptr->D=gsl_matrix_alloc(Ny,Nu);
 
 /**
 Assigning Q and R matrices*/

@@ -70,7 +70,7 @@ typedef struct
 
 void InitMPCType(structMPC *mpcptr,Model *modelptr,MPCType type,MPCPredictionType predtype);
 int InitSteadyState(structMPC *mpcptr,double *Cref,int Ntr);
-void InitMPC(structMPC *mpcptr,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA);
+void InitMPC(structMPC *mpcptr,Model *md,int cHorizon,gsl_matrix *Q,gsl_matrix *P,gsl_matrix *R,double *lb,double *ub,double *lbA,double *ubA);
 void MPC_Step(structMPC *mpcptr,gsl_matrix *xdata, gsl_matrix *u);
 /**returns the steady state values*/
 double* MPCcalcSS(structMPC *mpcptr, double *refr,double *input_dist, double *output_dist,gsl_matrix *Bd,gsl_matrix *Cref);

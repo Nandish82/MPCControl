@@ -28,4 +28,6 @@ void printKalmanData(Kalman_struc *m,int s,char *filename);
 void Kalman_Init_d_servo(Kalman_struc *Kalman,Model *m);
 void Kalman_Init_Ame_servo(Kalman_struc *Kalman,Model *m,double Ts);
 void Kalman_Step2Ame(Kalman_struc *Kalman,gsl_matrix *ymeas,gsl_matrix *u,int step_value);
+void Kalman_Init_delta(Kalman_struc *Kalman,Model *m,double Ts,double *Bd,int Nid,int Ndo);
+void Controllability(Kalman_struc *Kalman);
 #endif

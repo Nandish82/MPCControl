@@ -750,3 +750,141 @@ gsl_matrix_free(tmpBCd);
 }
 
 
+void Kalman_Init_delta(Kalman_struc *Kalman,Model *m,double Ts,double *Bd,int Ndi,int Ndo)
+{
+//Assuming input disturbance
+int Ns,Ny,Nu,Nsd,Nyd,Nud,Ntotal; //number os states, output, inputsKalman=m;
+int i,j,k;//counters
+gsl_matrix *Ad;
+gsl_matrix *Cd;
+gsl_matrix *tmpBCd;
+Kalman->Ts=Ts;
+/// We consider system of the general form
+/// x[k+1]=Ax[k]+Bu[k]+Bd.w
+///Disturbance model
+///xd[k+1]=Ad.xd[k] being constant disturbance Ad=eye
+///w=Cd.xd[k]
+///We are assuming a constant disturbance, so Ad=Cd=I (Ndi x Ndi)
+Nsd=Ndi;
+///Nsd--independent we can have as many states as we want to model disturbance
+Nyd=Nsd; ///let say its a constant disturbance acting on each input
+Nud=0; ///for now
+Ns=m->A->size1;
+Ns=Ns+Nsd; ///augmented state vector
+Nu=m->B->size2;
+Ny=m->C->size1;
+
+
+double tempBCDfromfile[]={0,0,0,0,0};
+//
+Ad=gsl_matrix_alloc(Nsd,Nsd);
+Cd=gsl_matrix_alloc(Nyd,Nyd);
+//
+/// Augmented Model becomes
+/// Au=[A B*Cd;0 Ad] Bu=[B;0] Cu=[C 0]
+tmpBCd=gsl_matrix_alloc(m->B->size1,Cd->size2);
+//
+
+//
+//
+Kalman->A=gsl_matrix_alloc(Ns,Ns);
+Kalman->B=gsl_matrix_alloc(Ns,Nu);
+Kalman->C=gsl_matrix_alloc(Ny,Ns);
+Kalman->D=gsl_matrix_alloc(Ny,Nu);
+
+
+
+//
+////set Ad and Cd matrix
+gsl_matrix_set_identity(Ad);
+gsl_matrix_set_identity(Cd);
+//
+////Construction of augmented matrix
+//tmpBCd=MatMul2(m->B,Cd);
+for(i=0;i<tmpBCd->size1;i++)
+    gsl_matrix_set(tmpBCd,i,0,Kalman->Ts*tempBCDfromfile[i]);
+//gsl_matrix_set_identity(tmpBCd);
+gsl_matrix_set_all(Kalman->A,0);
+gsl_matrix_set_all(Kalman->C,0);
+k=0;
+//print2scr(m->A->size1);
+
+for(i=0;i<Ns;i++)
+for(j=0;j<Ns;j++)
+{
+   if(((i<(Ns-Nsd))&&(j<(Ns-Nsd))))
+    {
+        gsl_matrix_set(Kalman->A,i,j,gsl_matrix_get(m->A,i,j));
+    }
+    else if(((i<(Ns-Nsd))&&(j>=(Ns-Nsd))))
+    {
+        gsl_matrix_set(Kalman->A,i,j,gsl_matrix_get(tmpBCd,i,j-Ns+Nsd));
+
+    }
+    else if (((i>=(Ns-Nsd))&&(j<(Ns-Nsd))))
+    {
+        gsl_matrix_set(Kalman->A,i,j,0);
+    }
+    else
+    {
+        gsl_matrix_set(Kalman->A,i,j,gsl_matrix_get(Ad,i-Ns+Nsd,j-Ns+Nsd));
+  }
+
+}
+
+//bmatrix
+for(i=0;i<Ns;i++)
+for(j=0;j<Nu;j++)
+{
+    if(i<(Ns-Nsd))
+    {
+        gsl_matrix_set(Kalman->B,i,j,gsl_matrix_get(m->B,i,j));
+    }
+    else if(i>=(Ns-Nsd))
+    {
+        gsl_matrix_set(Kalman->B,i,j,0);
+
+    }
+}
+
+//cmatrix
+for(i=0;i<Ny;i++)
+for(j=0;j<Ns;j++)
+{
+    if(j<(Ns-Nsd))
+    {
+        gsl_matrix_set(Kalman->C,i,j,gsl_matrix_get(m->C,i,j));
+    }
+    else
+    {
+        gsl_matrix_set(Kalman->C,i,j,0);
+
+    }
+}
+Kalman->Q=gsl_matrix_alloc(Ns,Ns);
+Kalman->R=gsl_matrix_alloc(Ny,Ny);
+gsl_matrix_set_identity(Kalman->Q);
+gsl_matrix_set_identity(Kalman->R);
+
+//Kalman->Q=gsl_matrix_alloc(Ns,Ns);
+//Kalman->R=gsl_matrix_alloc(Ny,Ny);
+Kalman->P=gsl_matrix_alloc(Ns,Ns);
+Kalman->K=gsl_matrix_alloc(Ns,Ny);
+Kalman->xdata=gsl_matrix_alloc(Ns,1);
+gsl_matrix_set_all(Kalman->xdata,0);
+
+gsl_matrix_free(Ad);
+gsl_matrix_free(Cd);
+gsl_matrix_free(tmpBCd);
+
+}
+void Controllability(Kalman_struc *Kalman)
+{
+    #ifdef AMESIM
+        ameprintf(stderr,"");
+    #endif // AMESIM
+}
+
+
+
+
