@@ -260,7 +260,7 @@ assign_Mat(umat,u);
 
 /****MPC Parameters to pass for stepping*/
 double refr[]={40};
-double inputdist[]={7};
+double inputdist[]={0};
 double Bdx[]={0,0,0,02,0};
 double outputdist[]={2};
 double xref[]={0.0,0.0,0.0,40,0.0};
@@ -288,7 +288,7 @@ gsl_matrix *deltaUdata=gsl_matrix_alloc(1,modelptr->Ndatapoints);
 FILE *fp1;
 fp1=fopen("step.txt","w+");
 fclose(fp1);
-for(i=1;i<modeldptr->Ndatapoints/1;i++)
+for(i=1;i<modeldptr->Ndatapoints/100;i++)
 {
     StepSteadyState(mpcptr,refr,inputdist,outputdist,Bdx,1);
     printSteadyState(mpcptr);
@@ -315,10 +315,10 @@ for(i=1;i<modeldptr->Ndatapoints/1;i++)
 
 printModeldata(modeldptr,1,"output.txt");
 printModeldata(modeldptr,2,"input.txt");
-gnu_plot("output.txt","1:2");
-gnu_plot("output.txt","1:3");
-gnu_plot("output.txt","1:4");
-gnu_plot("input.txt","1:2");
+//gnu_plot("output.txt","1:2");
+//gnu_plot("output.txt","1:3");
+//gnu_plot("output.txt","1:4");
+//gnu_plot("input.txt","1:2");
 
 
 
@@ -327,14 +327,65 @@ int Nid=0,Nod=4;
 double *inputdist1;
 double *outputdist1;
 
-inputdist1=outputinput;
-outputdist1=outputinput+Nid;
 
-for(i=0;i<Nid;i++)
-    printf("input disturbance[%d]=%f\n",i,inputdist1[i]);
+double akal[]={0,1,-2,-3};
+double bkal[]={0,1};
+double ckal[]={1,0,0,1};
+double dkal[]={0,0};
+double x01[]={2,1.5};
 
-for(i=0;i<Nod;i++)
-    printf("Output disturbance[%d]=%f\n",i,outputdist1[i]);
+Kalman_struc kaltest,*kalptr;
+Model modl,*modlptr;
+
+modlptr=&modl;
+kalptr=&kaltest;
+
+modlptr->A=gsl_matrix_alloc(2,2);
+modlptr->B=gsl_matrix_alloc(2,1);
+modlptr->C=gsl_matrix_alloc(2,2);
+modlptr->D=gsl_matrix_alloc(2,1);
+modlptr->X0=gsl_matrix_alloc(2,1);
+
+assign_Mat(modlptr->A,akal);
+assign_Mat(modlptr->B,bkal);
+assign_Mat(modlptr->C,ckal);
+assign_Mat(modlptr->D,dkal);
+assign_Mat(modlptr->X0,x01);
+print2scr(modlptr->A);
+print2scr(modlptr->C);
+
+double Bd1[]={1,2,3,4};
+double Dd1[]={1,0,0,1};
+
+double Qkal[]={2,3,4,5};
+double Rkal[]={1,2};
+
+Kalman_Init_Dist(kalptr,modlptr,0.02,Bd1,Dd1,0,2,Qkal,Rkal);
+printf("Kalman A");
+print2scr(kalptr->A);
+printf("Kalman B");
+print2scr(kalptr->B);
+printf("Kalman C");
+print2scr(kalptr->C);
+printf("Kalman D");
+print2scr(kalptr->D);
+
+
+printf("Kalman Q");
+print2scr(kalptr->Q);
+printf("Kalman R");
+print2scr(kalptr->R);
+
+printf("Kalman P");
+print2scr(kalptr->P);
+printf("Kalman K");
+print2scr(kalptr->K);
+
+printf("Kalman X0");
+print2scr(kalptr->xdata);
+
+//Observability(kalptr);
+//Controllability(kalptr);
 
 
 return 0;

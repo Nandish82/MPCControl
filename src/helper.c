@@ -257,3 +257,24 @@ int createDiagonal(gsl_matrix *OUT,double *in)
     return 0;
 
 }
+
+void assign_Diag(gsl_matrix *m,double *val)
+{
+// Takes a double array and assigns the value to a matrix
+    int rows=m->size1;
+    int cols=m->size2;
+    int i,j,k=0;
+
+    if (rows!=cols)
+    {
+        printf("Matrix not square. Attempting to send diagonals on the smaller of the 2 sizes");
+        if(rows>cols)
+            rows=cols;
+
+    }
+
+
+
+    for (i = 0;i<rows; i++)
+            gsl_matrix_set (m, i, i, val[i]);
+}

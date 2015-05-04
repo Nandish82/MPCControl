@@ -750,7 +750,7 @@ gsl_matrix_free(tmpBCd);
 }
 
 
-void Kalman_Init_delta(Kalman_struc *Kalman,Model *m,double Ts,double *Bd,int Ndi,int Ndo)
+void Kalman_Init_Dist(Kalman_struc *Kalman,Model *m,double Ts,double *Bd,double *Dd,int Ndi,int Ndo,double *Qkal,double *Rkal)
 {
 //Assuming input disturbance
 int Ns,Ny,Nu,Nsd,Nyd,Nud,Ntotal; //number os states, output, inputsKalman=m;
@@ -759,132 +759,234 @@ gsl_matrix *Ad;
 gsl_matrix *Cd;
 gsl_matrix *tmpBCd;
 Kalman->Ts=Ts;
+
+Ns=m->A->size1;
+Nu=m->B->size2;
+Ny=m->C->size1;
 /// We consider system of the general form
 /// x[k+1]=Ax[k]+Bu[k]+Bd.w
 ///Disturbance model
 ///xd[k+1]=Ad.xd[k] being constant disturbance Ad=eye
 ///w=Cd.xd[k]
 ///We are assuming a constant disturbance, so Ad=Cd=I (Ndi x Ndi)
-Nsd=Ndi;
 ///Nsd--independent we can have as many states as we want to model disturbance
-Nyd=Nsd; ///let say its a constant disturbance acting on each input
-Nud=0; ///for now
-Ns=m->A->size1;
-Ns=Ns+Nsd; ///augmented state vector
-Nu=m->B->size2;
-Ny=m->C->size1;
+
+Ntotal=Ns+Ndi+Ndo; ///Total number of states
 
 
-double tempBCDfromfile[]={0,0,0,0,0};
-//
-Ad=gsl_matrix_alloc(Nsd,Nsd);
-Cd=gsl_matrix_alloc(Nyd,Nyd);
-//
-/// Augmented Model becomes
-/// Au=[A B*Cd;0 Ad] Bu=[B;0] Cu=[C 0]
-tmpBCd=gsl_matrix_alloc(m->B->size1,Cd->size2);
-//
-
-//
-//
-Kalman->A=gsl_matrix_alloc(Ns,Ns);
-Kalman->B=gsl_matrix_alloc(Ns,Nu);
-Kalman->C=gsl_matrix_alloc(Ny,Ns);
+///allocate matrices
+Kalman->A=gsl_matrix_alloc(Ntotal,Ntotal);
+Kalman->B=gsl_matrix_alloc(Ntotal,Nu);
+Kalman->C=gsl_matrix_alloc(Ny,Ntotal);
 Kalman->D=gsl_matrix_alloc(Ny,Nu);
 
+///populate A matrix
+///    [A Bd 0]
+/// A= [0  Adi 0]
+///    [0  0 Ado]
+/// Adi and Ado (as of now are taken to be identity Matrices as disturbance is assumed constant.
+/// Adi=I, Ado=I
+/// little trick---after the row [ A Bd 0], we will just assign a diagonal matrice.
+/// i.e for i<Ns we will assign a diagonal matrix
 
+gsl_matrix_set_all(Kalman->A,0); ///set all entries to zero
 
-//
-////set Ad and Cd matrix
-gsl_matrix_set_identity(Ad);
-gsl_matrix_set_identity(Cd);
-//
-////Construction of augmented matrix
-//tmpBCd=MatMul2(m->B,Cd);
-for(i=0;i<tmpBCd->size1;i++)
-    gsl_matrix_set(tmpBCd,i,0,Kalman->Ts*tempBCDfromfile[i]);
-//gsl_matrix_set_identity(tmpBCd);
-gsl_matrix_set_all(Kalman->A,0);
-gsl_matrix_set_all(Kalman->C,0);
-k=0;
-//print2scr(m->A->size1);
-
+///FIRST ROW ASSIGNMENT
 for(i=0;i<Ns;i++)
-for(j=0;j<Ns;j++)
+    for(j=0;j<Ns+Ndi;j++)
 {
-   if(((i<(Ns-Nsd))&&(j<(Ns-Nsd))))
-    {
+    if(j<Ns)
         gsl_matrix_set(Kalman->A,i,j,gsl_matrix_get(m->A,i,j));
-    }
-    else if(((i<(Ns-Nsd))&&(j>=(Ns-Nsd))))
-    {
-        gsl_matrix_set(Kalman->A,i,j,gsl_matrix_get(tmpBCd,i,j-Ns+Nsd));
-
-    }
-    else if (((i>=(Ns-Nsd))&&(j<(Ns-Nsd))))
-    {
-        gsl_matrix_set(Kalman->A,i,j,0);
-    }
-    else
-    {
-        gsl_matrix_set(Kalman->A,i,j,gsl_matrix_get(Ad,i-Ns+Nsd,j-Ns+Nsd));
-  }
-
+    if(j>=Ns)
+        gsl_matrix_set(Kalman->A,i,j,Bd[i+(j-Ns)*Ns]);
 }
 
-//bmatrix
+///DIAGONAL ELEMENTS ASSIGNMENT;
+for(i=Ns;i<Ntotal;i++)
+    gsl_matrix_set(Kalman->A,i,i,1.0);
+
+/// B Matrix
+gsl_matrix_set_all(Kalman->B,0);
+
 for(i=0;i<Ns;i++)
-for(j=0;j<Nu;j++)
-{
-    if(i<(Ns-Nsd))
-    {
+    for(j=0;j<Nu;j++)
         gsl_matrix_set(Kalman->B,i,j,gsl_matrix_get(m->B,i,j));
-    }
-    else if(i>=(Ns-Nsd))
-    {
-        gsl_matrix_set(Kalman->B,i,j,0);
 
-    }
-}
+/// C matrix
+/// C=[C 0 Dd]
+/// In theory we should have a value of Dd but here we take Dd=I
+gsl_matrix_set_all(Kalman->C,0);
 
-//cmatrix
 for(i=0;i<Ny;i++)
-for(j=0;j<Ns;j++)
-{
-    if(j<(Ns-Nsd))
-    {
+    for(j=0;j<Ns;j++)
         gsl_matrix_set(Kalman->C,i,j,gsl_matrix_get(m->C,i,j));
-    }
-    else
-    {
-        gsl_matrix_set(Kalman->C,i,j,0);
 
-    }
-}
-Kalman->Q=gsl_matrix_alloc(Ns,Ns);
-Kalman->R=gsl_matrix_alloc(Ny,Ny);
+///Setting output disturbance
+    for(i=0;i<Ny;i++)
+        for(j=Ns+Ndi;j<Ntotal;j++)
+            gsl_matrix_set(Kalman->C,i,j,Dd[i+(j-Ns-Ndi)*Ny]);
+
+/// D matrix
+gsl_matrix_memcpy(Kalman->D,m->D);
+
+
+/// Q,R,P and K matrices
+
+Kalman->Q=gsl_matrix_alloc(Ntotal,Ntotal);
 gsl_matrix_set_identity(Kalman->Q);
+Kalman->R=gsl_matrix_alloc(Ny,Ny);
 gsl_matrix_set_identity(Kalman->R);
+Kalman->P=gsl_matrix_alloc(Ntotal,Ntotal);
+gsl_matrix_set_all(Kalman->P,0);
+Kalman->K=gsl_matrix_alloc(Ntotal,Ny);
+gsl_matrix_set_all(Kalman->K,0);
 
-//Kalman->Q=gsl_matrix_alloc(Ns,Ns);
-//Kalman->R=gsl_matrix_alloc(Ny,Ny);
-Kalman->P=gsl_matrix_alloc(Ns,Ns);
-Kalman->K=gsl_matrix_alloc(Ns,Ny);
-Kalman->xdata=gsl_matrix_alloc(Ns,1);
+assign_Diag(Kalman->Q,Qkal);
+assign_Diag(Kalman->R,Rkal);
+
+
+
+
+
+Kalman->xdata=gsl_matrix_alloc(Ntotal,1);
 gsl_matrix_set_all(Kalman->xdata,0);
+    for(i=0;i<Ns;i++)
+    {
+            gsl_matrix_set(Kalman->xdata,i,0,gsl_matrix_get(m->X0,i,0));
+    }
 
-gsl_matrix_free(Ad);
-gsl_matrix_free(Cd);
-gsl_matrix_free(tmpBCd);
+
+Kalman->initflag=1;
+
+
+
+
 
 }
-void Controllability(Kalman_struc *Kalman)
+int Controllability(Kalman_struc *Kalman)
 {
-    #ifdef AMESIM
-        ameprintf(stderr,"");
-    #endif // AMESIM
+  int Ns,Nu,Ny,i,j,k;
+    gsl_matrix *Ctrb;
+    gsl_matrix *tempmat;
+    int rankmat;
+    double tempval;
+
+    Ns=Kalman->A->size1;
+    Nu=Kalman->B->size2;
+
+    Ctrb=gsl_matrix_alloc(Ns,Ns*Nu);
+    tempmat=gsl_matrix_alloc(Ns,Nu);
+
+
+    for(k=0;k<Ns;k++)
+    {
+        tempmat=MatMul2(MatMulrec(Kalman->A,k),Kalman->B);
+        for(i=0;i<Ns;i++)
+        {
+            for(j=0;j<Nu;j++)
+            {
+                gsl_matrix_set(Ctrb,i,j+k*Nu,gsl_matrix_get(tempmat,i,j));
+            }
+        }
+    }
+
+      printf("Controllability matrix");
+    print2scr(Ctrb);
+    rankmat=matRank(Ctrb,1.0e-6);
+    printf("Rank of Matrix is:%d\n",rankmat);
+
+    gsl_matrix_free(tempmat);
+    gsl_matrix_free(Ctrb);
+
+    return(rankmat);
+}
+int Observability(Kalman_struc *Kalman)
+{
+    int Ns,Nu,Ny,i,j,k;
+    gsl_matrix *Obsv;
+    gsl_matrix *tempmat;
+    int rankmat;
+    double tempval;
+
+    Ns=Kalman->A->size1;
+    Ny=Kalman->C->size1;
+
+   Obsv=gsl_matrix_alloc(Ns*Ny,Ns);
+    tempmat=gsl_matrix_alloc(Ny,Ns);
+
+
+
+    for(k=0;k<Ns;k++)
+    {
+        tempmat=MatMul2(Kalman->C,MatMulrec(Kalman->A,k));
+
+        for(i=0;i<Ny;i++)
+        {
+            for(j=0;j<Ns;j++)
+            {
+                gsl_matrix_set(Obsv,i+k*Ny,j,gsl_matrix_get(tempmat,i,j));
+            }
+        }
+    }
+
+    printf("Observability matrix");
+    print2scr(Obsv);
+    rankmat=matRank(Obsv,1.0e-6);
+    printf("Rank of Matrix is:%d\n",rankmat);
+    gsl_matrix_free(tempmat);
+    gsl_matrix_free(Obsv);
+
+    return rankmat;
+
 }
 
+///findSVD does the SVD decomposition of the matrice A and return the diagonal elements in a vector
+///if A is rectangular M x N matrice. S is an N x 1 matrice.
 
+void findSVD(gsl_matrix *A,gsl_vector *S)
+{
+ int N,M,i;
+ M=A->size1;
+ N=A->size2;
+ int error;
+
+ gsl_matrix *U=gsl_matrix_alloc(M,N);
+ gsl_matrix_memcpy(U,A);
+gsl_vector *work=gsl_vector_alloc(N);
+ gsl_matrix *V=gsl_matrix_alloc(N,N);
+
+ error=gsl_linalg_SV_decomp(U,V,S,work);
+
+
+/* printf("SVD decomposition\n");
+ printf("U:");
+ print2scr(U);
+ printf("V:");
+ print2scr(V);
+
+printf("Singular Values S:\n");
+ for(i=0;i<N;i++)
+    printf("S[%d]:%f\n",i,gsl_vector_get(S,i));*/
+
+gsl_matrix_free(U);
+gsl_matrix_free(V);
+gsl_vector_free(work);
+
+}
+int matRank(gsl_matrix *R,double tol)
+{
+    gsl_vector *S=gsl_vector_alloc(R->size2);
+    int counter=0,i;
+
+    findSVD(R,S);
+
+    for(i=0;i<S->size;i++)
+    {
+        if (gsl_vector_get(S,i)>tol)
+            counter=counter+1;
+    }
+
+    return counter;
+}
 
 

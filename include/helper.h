@@ -39,3 +39,4 @@ gsl_matrix* MatMulrec(gsl_matrix *m,int p);
 void print2FileMat(gsl_matrix *m,FILE *filepointer);
 int Diag(gsl_matrix *OUT,gsl_matrix *IN1,gsl_matrix *IN2);///takes two matrices and concatenates them diagonally
 int createDiagonal(gsl_matrix *OUT,double *in);
+void assign_Diag(gsl_matrix *m,double *val);

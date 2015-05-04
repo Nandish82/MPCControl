@@ -28,6 +28,9 @@ void printKalmanData(Kalman_struc *m,int s,char *filename);
 void Kalman_Init_d_servo(Kalman_struc *Kalman,Model *m);
 void Kalman_Init_Ame_servo(Kalman_struc *Kalman,Model *m,double Ts);
 void Kalman_Step2Ame(Kalman_struc *Kalman,gsl_matrix *ymeas,gsl_matrix *u,int step_value);
-void Kalman_Init_delta(Kalman_struc *Kalman,Model *m,double Ts,double *Bd,int Nid,int Ndo);
-void Controllability(Kalman_struc *Kalman);
+void Kalman_Init_Dist(Kalman_struc *Kalman,Model *m,double Ts,double *Bd,double *Dd,int Ndi,int Ndo,double *Qkal,double *Rcal);
+int Controllability(Kalman_struc *Kalman); ///returns rank of controllability matrix
+int Observability(Kalman_struc *Kalman); ///returns rank of observability matrix
+void findSVD(gsl_matrix *A,gsl_vector *S);
+int matRank(gsl_matrix *R,double tol);
 #endif
