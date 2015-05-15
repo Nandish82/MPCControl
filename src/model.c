@@ -367,7 +367,7 @@ void DiscrModel(Model *src,Model *dest, double Ts)
     dest->Bd=gsl_matrix_alloc(Ns,1);
 
 
-    expA=gsl_matrix_alloc(Ns+1,Ns+Nu);
+    expA=gsl_matrix_alloc(Ns+Nu,Ns+Nu);
     gsl_matrix_set_zero(expA);
 
     for(i=0;i<Ns;i++)
@@ -407,6 +407,68 @@ void DiscrModel(Model *src,Model *dest, double Ts)
     gsl_matrix_memcpy(dest->D,src->D);
     gsl_matrix_memcpy(dest->X0,src->X0);
     gsl_matrix_memcpy(dest->Bd,src->Bd);
+
+    dest->Ts=Ts;
+
+    gsl_matrix_free(expA);
+
+}
+
+/// discretizes input disturbance
+/// takes in the model and continous form of Bd--Bdc
+/// returns Bdk discrete form
+///num Disturbances
+void DiscrDisturbance(Model *cont,double* Bdc,double* Bdk,int numDisturbances,double Ts)
+{
+
+
+
+
+    int Ns,Nu,Ny,i,j;
+
+    gsl_matrix *expA;
+
+    Ns=cont->B->size1;
+    Nu=cont->B->size2;
+
+    expA=gsl_matrix_alloc(Ns+numDisturbances,Ns+numDisturbances);
+
+    gsl_matrix_set_zero(expA);
+
+    ///we need matrix of the form
+    /// [A B]
+    /// [0 0]
+
+    ///TO BE DELELTED///
+    ///VALUES PASSED//
+
+
+
+
+
+    for (i=0;i<Ns;i++)
+        for(j=0;j<Ns+numDisturbances;j++)
+    {
+        if(j<Ns)
+            gsl_matrix_set(expA,i,j,gsl_matrix_get(cont->A,i,j)*Ts);
+        else
+            gsl_matrix_set(expA,i,j,Ts*Bdc[i+(j-Ns)*Ns]);
+    }
+
+
+
+    /// Discretize funtion
+    gsl_linalg_exponential_ss(expA,expA,1);
+
+
+
+    for(i=0;i<Ns;i++)
+        for(j=Ns;j<Ns+numDisturbances;j++)
+        Bdk[i+(j-Ns)*Ns]=gsl_matrix_get(expA,i,j);
+
+
+
+
 
 
     gsl_matrix_free(expA);

@@ -34,4 +34,5 @@ void discretize_model(Model *mc,Model *md,double Ts);
 void InitSimModelAme(Model *m,gsl_matrix *X0,double Ts,double tsim);
 void LoadDoubles(Model *m,double *a,double *b, double *c, double *d, double *x0,int Ns,int Nu,int Ny);
 void DiscrModel(Model *src,Model *dest, double Ts);
+void DiscrDisturbance(Model *cont,double* Bdc,double* Bdk,int numDisturbances,double Ts);
 #endif

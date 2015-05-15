@@ -351,41 +351,47 @@ assign_Mat(modlptr->B,bkal);
 assign_Mat(modlptr->C,ckal);
 assign_Mat(modlptr->D,dkal);
 assign_Mat(modlptr->X0,x01);
+modlptr->Ts=0.1;
 print2scr(modlptr->A);
 print2scr(modlptr->C);
 
-double Bd1[]={1,2,3,4};
+double Bd1[]={1,2,3,4,5,6};
 double Dd1[]={1,0,0,1};
+double Bdk[]={0,0,0,0};
 
-double Qkal[]={2,3,4,5};
-double Rkal[]={1,2};
+DiscrDisturbance(modlptr,Bd1,Bdk,3,Ts);
 
-Kalman_Init_Dist(kalptr,modlptr,0.02,Bd1,Dd1,0,2,Qkal,Rkal);
-printf("Kalman A");
-print2scr(kalptr->A);
-printf("Kalman B");
-print2scr(kalptr->B);
-printf("Kalman C");
-print2scr(kalptr->C);
-printf("Kalman D");
-print2scr(kalptr->D);
-
-
-printf("Kalman Q");
-print2scr(kalptr->Q);
-printf("Kalman R");
-print2scr(kalptr->R);
-
-printf("Kalman P");
-print2scr(kalptr->P);
-printf("Kalman K");
-print2scr(kalptr->K);
-
-printf("Kalman X0");
-print2scr(kalptr->xdata);
+//double Qkal[]={2,3,4,5};
+//double Rkal[]={1,2};
+//
+//Kalman_Init_Dist(kalptr,modlptr,0.02,Bd1,Dd1,0,2,Qkal,Rkal);
+//printf("Kalman A");
+//print2scr(kalptr->A);
+//printf("Kalman B");
+//print2scr(kalptr->B);
+//printf("Kalman C");
+//print2scr(kalptr->C);
+//printf("Kalman D");
+//print2scr(kalptr->D);
+//
+//
+//printf("Kalman Q");
+//print2scr(kalptr->Q);
+//printf("Kalman R");
+//print2scr(kalptr->R);
+//
+//printf("Kalman P");
+//print2scr(kalptr->P);
+//printf("Kalman K");
+//print2scr(kalptr->K);
+//
+//printf("Kalman X0");
+//print2scr(kalptr->xdata);
 
 //Observability(kalptr);
 //Controllability(kalptr);
+
+
 
 
 return 0;

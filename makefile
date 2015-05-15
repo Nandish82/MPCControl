@@ -1,4 +1,5 @@
 FINAL_DIR=/d/libs_extra_ame_delta
+FINAL_DIR2="/d/MPC submodels/addons"
 
 IFLAGS=-I./ -I/d/libs_extra_ame_delta/GSL -I/d/libs_extra_ame_delta/qpOASES/lib/utils/include -I./include
 LFLAGS=-L./ -L/d/libs_extra_ame_delta/lib -L/d/libs_extra_ame_delta/qpOASES/win32
@@ -16,6 +17,8 @@ output=mpcprog
 $(FINAL_DIR)/lib/libdelta.a:$(LIB)
 	cp $(LIB) $(FINAL_DIR)/lib
 	cp $(INCL)/*.h $(FINAL_DIR)/include
+	cp $(LIB) $(FINAL_DIR2)/lib
+	cp $(INCL)/*.h $(FINAL_DIR2)/include
 
 
 $(BIN)/$(output): src/$(output).o $(LIB)
