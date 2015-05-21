@@ -334,6 +334,7 @@ double ckal[]={1,0,0,1};
 double dkal[]={0,0};
 double x01[]={2,1.5};
 
+
 Kalman_struc kaltest,*kalptr;
 Model modl,*modlptr;
 
@@ -356,23 +357,26 @@ print2scr(modlptr->A);
 print2scr(modlptr->C);
 
 double Bd1[]={1,2,3,4,5,6};
-double Dd1[]={1,0,0,1};
-double Bdk[]={0,0,0,0};
+double Dd1[4]={1,0,0,1};
+double Bdk[4]={0,0,0,0};
 
-DiscrDisturbance(modlptr,Bd1,Bdk,3,Ts);
+ for(i=0;i<4;i++)
+        printf("Dd[%d]=%f\n",i,Dd1[i]);
+DiscrDisturbance(modlptr,Bd1,Bdk,1,Ts);
+ for(i=0;i<4;i++)
+        printf("Dd[%d]=%f\n",i,Dd1[i]);
+double Qkal[]={2,3,4,5};
+double Rkal[]={1,2};
 
-//double Qkal[]={2,3,4,5};
-//double Rkal[]={1,2};
-//
-//Kalman_Init_Dist(kalptr,modlptr,0.02,Bd1,Dd1,0,2,Qkal,Rkal);
-//printf("Kalman A");
-//print2scr(kalptr->A);
-//printf("Kalman B");
-//print2scr(kalptr->B);
-//printf("Kalman C");
-//print2scr(kalptr->C);
-//printf("Kalman D");
-//print2scr(kalptr->D);
+Kalman_Init_Dist(kalptr,modlptr,0.02,Bd1,Dd1,0,2,Qkal,Rkal);
+printf("Kalman A");
+print2scr(kalptr->A);
+printf("Kalman B");
+print2scr(kalptr->B);
+printf("Kalman C");
+print2scr(kalptr->C);
+printf("Kalman D");
+print2scr(kalptr->D);
 //
 //
 //printf("Kalman Q");

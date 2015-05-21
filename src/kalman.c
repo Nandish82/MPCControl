@@ -801,7 +801,7 @@ for(i=0;i<Ns;i++)
         gsl_matrix_set(Kalman->A,i,j,Bd[i+(j-Ns)*Ns]);
 }
 
-///DIAGONAL ELEMENTS ASSIGNMENT;
+///DIAGONAL ELEMENTS ASSIGNMENT; ///Here is where the Ad matrix should be set in case disturbance model is not a constant one
 for(i=Ns;i<Ntotal;i++)
     gsl_matrix_set(Kalman->A,i,i,1.0);
 
@@ -822,9 +822,16 @@ for(i=0;i<Ny;i++)
         gsl_matrix_set(Kalman->C,i,j,gsl_matrix_get(m->C,i,j));
 
 ///Setting output disturbance
+     for(i=0;i<10;i++)
+        printf("Dd[%d]=%f\n",i,Dd[i]);
     for(i=0;i<Ny;i++)
         for(j=Ns+Ndi;j<Ntotal;j++)
+        {
             gsl_matrix_set(Kalman->C,i,j,Dd[i+(j-Ns-Ndi)*Ny]);
+            printf("Dd[%d]=%f\n",i+(j-Ns-Ndi)*Ny,Dd[i+(j-Ns-Ndi)*Ny]);
+
+        }
+
 
 /// D matrix
 gsl_matrix_memcpy(Kalman->D,m->D);

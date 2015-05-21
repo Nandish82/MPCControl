@@ -461,10 +461,14 @@ void DiscrDisturbance(Model *cont,double* Bdc,double* Bdk,int numDisturbances,do
     gsl_linalg_exponential_ss(expA,expA,1);
 
 
-
+    print2scr(expA);
     for(i=0;i<Ns;i++)
         for(j=Ns;j<Ns+numDisturbances;j++)
-        Bdk[i+(j-Ns)*Ns]=gsl_matrix_get(expA,i,j);
+        {
+             Bdk[i+(j-Ns)*Ns]=gsl_matrix_get(expA,i,j);
+             printf("bdk[%d]=%f\n",i+(j-Ns)*Ns,Bdk[i+(j-Ns)*Ns]);
+        }
+
 
 
 
